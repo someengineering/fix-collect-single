@@ -1,0 +1,36 @@
+[project]
+name = "collect-single"
+version = "1.0.0"
+authors = [{name="Some Engineering Inc."}]
+description = "Single collect run coordinator."
+requires-python = ">=3.9"
+classifiers = [ "Programming Language :: Python :: 3" ]
+readme = {file="README.md", content-type="text/markdown"}
+
+dependencies = [ "resotolib", "resotocore", "resotoworker", "fixcloudutils" ]
+
+[project.optional-dependencies]
+
+test = [
+    "black",
+    "coverage",
+    "flake8",
+    "hypothesis",
+    "mypy",
+    "pep8-naming",
+    "pip-tools",
+    "pylint",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "tox",
+]
+
+
+[project.scripts]
+collect_single = "collect_single.__main__:main"
+
+[build-system]
+requires = ["setuptools>=67.8.0", "wheel>=0.40.0", "build>=0.10.0"]
+build-backend = "setuptools.build_meta"
+
