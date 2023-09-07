@@ -162,7 +162,7 @@ class CollectAndSync(Service):
 
                 # send a report event for this tenant
                 await self.report_publisher.publish(
-                    "benchmark_reports",
+                    "tenant_report",
                     {
                         "job_id": self.job_id,
                         "tenant_id": self.tenant_id,
