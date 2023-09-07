@@ -49,7 +49,7 @@ class CollectAndSync(Service):
         publisher = "collect-and-sync"
         self.progress_update_publisher = RedisPubSubPublisher(redis, "progress-updates", publisher)
         self.collect_done_publisher = RedisStreamPublisher(redis, "collect-done", publisher)
-        self.report_publisher = RedisStreamPublisher(redis, "benchmark-reports", publisher)
+        self.report_publisher = RedisStreamPublisher(redis, "tenant-reports", publisher)
         self.started_at = utc()
 
     async def start(self) -> Any:
