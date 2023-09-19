@@ -49,7 +49,7 @@ class CollectAndSync(Service):
         publisher = "collect-and-sync"
         self.progress_update_publisher = RedisPubSubPublisher(redis, "progress-updates", publisher)
         self.collect_done_publisher = RedisStreamPublisher(redis, "collect-done", publisher)
-        self.report_publisher = RedisStreamPublisher(redis, "report", publisher)
+        self.report_publisher = RedisStreamPublisher(redis, "tenant-reports", publisher)
         self.started_at = utc()
 
     async def start(self) -> Any:
@@ -144,7 +144,7 @@ class CollectAndSync(Service):
                 },
             )
 
-            if account_info:  # only create reports, if account data was collected
+            if True or account_info:  # only create reports, if account data was collected
                 benchmark_results = {}
                 benchmarks = [
                     cfg.split("resoto.report.benchmark.", maxsplit=1)[-1]
@@ -153,13 +153,16 @@ class CollectAndSync(Service):
                 ]
                 for benchmark in benchmarks:
                     report = [
-                        n async for n in client.cli_execute(f"report benchmark run {benchmark} | format --ndjson")
+                        n
+                        async for n in client.cli_execute(
+                            f"report benchmark run {benchmark} | dump", headers={"Accept": "application/json"}
+                        )
                     ]
-                    benchmark_results[benchmark] = report
+                    benchmark_results[benchmark] = report[0]  # result of first command
 
                 # send a report event for this tenant
                 await self.report_publisher.publish(
-                    "report",
+                    "tenant_report",
                     {
                         "job_id": self.job_id,
                         "tenant_id": self.tenant_id,

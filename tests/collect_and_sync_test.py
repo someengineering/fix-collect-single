@@ -13,35 +13,36 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import json
 
-import asyncio
-from typing import AsyncIterator
-
-from pytest import fixture
+import pytest
 from resotoclient.async_client import ResotoClient
+from redis.asyncio import Redis
+
+from collect_single.collect_and_sync import CollectAndSync
 
 
-@fixture
-async def core_client() -> AsyncIterator[ResotoClient]:
-    client = ResotoClient("http://localhost:8980")
-    flag = True
-    while flag:
-        try:
-            await client.ping()
-            flag = False
-            yield client
-        except Exception:
-            await asyncio.sleep(1)
+@pytest.mark.asyncio
+@pytest.mark.skip(reason="Only for manual testing")
+async def test_client(core_client: ResotoClient) -> None:
+    benchmark_results = {}
+    benchmarks = ["aws_test"]
+    for benchmark in benchmarks:
+        report = [
+            n
+            async for n in core_client.cli_execute(
+                f"report benchmark run {benchmark} | dump", headers={"Accept": "application/json"}
+            )
+        ]
+        benchmark_results[benchmark] = report[0]
+    print(json.dumps(benchmark_results, indent=2))
 
 
-# @mark.asyncio
-# async def test_client(core_client: ResotoClient) -> None:
-#     configs = [
-#         cfg.split("resoto.report.benchmark.", maxsplit=1)[-1]
-#         async for cfg in core_client.cli_execute("configs list")
-#         if cfg.startswith("resoto.report.benchmark.")
-#     ]
-#     print(configs)
+@pytest.mark.asyncio
+@pytest.mark.skip(reason="Only for manual testing")
+async def test_collect_and_sync(redis: Redis, core_client: ResotoClient) -> None:
+    cs = CollectAndSync(redis, "tenant_id", "job_id", [], [])
+    await cs.send_result_events()
 
 
 def test_true() -> None:

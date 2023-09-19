@@ -13,14 +13,31 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import asyncio
+from typing import AsyncIterator
 
 from pytest import fixture
 from redis.asyncio import Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
+from resotoclient.async_client import ResotoClient
 
 
 @fixture
 def redis() -> Redis:
     backoff = ExponentialBackoff()  # type: ignore
     return Redis(host="localhost", port=6379, decode_responses=True, retry=Retry(backoff, 10))
+
+
+@fixture
+async def core_client() -> AsyncIterator[ResotoClient]:
+    client = ResotoClient("http://localhost:8980")
+    flag = True
+    while flag:
+        print("Trying to connect to core...")
+        try:
+            await client.ping()
+            flag = False
+            yield client
+        except Exception:
+            await asyncio.sleep(1)
