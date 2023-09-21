@@ -1,4 +1,4 @@
-ARG IMAGE_TAG=latest
+ARG IMAGE_TAG=edge
 FROM ghcr.io/someengineering/resotobase:${IMAGE_TAG}
 
 # Install this project into the existing venv

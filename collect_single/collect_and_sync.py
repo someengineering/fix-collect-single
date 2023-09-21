@@ -47,20 +47,17 @@ class CollectAndSync(Service):
         self.core_url = core_url
         self.task_id: Optional[str] = None
         publisher = "collect-and-sync"
-        self.progress_update_publisher = RedisPubSubPublisher(redis, "progress-updates", publisher)
-        self.collect_done_publisher = RedisStreamPublisher(redis, "collect-done", publisher)
-        self.report_publisher = RedisStreamPublisher(redis, "tenant-reports", publisher)
+        self.progress_update_publisher = RedisPubSubPublisher(redis, f"tenant-events::{tenant_id}", publisher)
+        self.collect_done_publisher = RedisStreamPublisher(redis, "collect-events", publisher)
         self.started_at = utc()
 
     async def start(self) -> Any:
         await self.progress_update_publisher.start()
         await self.collect_done_publisher.start()
-        await self.report_publisher.start()
 
     async def stop(self) -> None:
         await self.progress_update_publisher.stop()
         await self.collect_done_publisher.stop()
-        await self.report_publisher.stop()
 
     async def core_client(self) -> ResotoClient:
         client = ResotoClient(self.core_url)
@@ -72,12 +69,15 @@ class CollectAndSync(Service):
                 await asyncio.sleep(1)
 
     async def listen_to_events_until_collect_done(self, client: ResotoClient) -> bool:
-        async for event in client.events({"progress", "task_end"}):
+        async for event in client.events({"progress", "error", "task_end"}):
             message_type = event.get("message_type", "")
             data = event.get("data", {})
             if message_type == "progress":
                 log.info("Received progress event. Publish via redis")
-                await self.progress_update_publisher.publish("progress", data, f"progress.{self.tenant_id}")
+                await self.progress_update_publisher.publish("collect-progress", data)
+            elif message_type == "error":
+                log.info("Received info message. Publish via redis")
+                await self.progress_update_publisher.publish("collect-error", data)
             elif message_type == "task_end" and self.task_id and data.get("task_id", "") == self.task_id:
                 log.info("Received Task End event. Exit.")
                 return True
@@ -126,52 +126,46 @@ class CollectAndSync(Service):
     async def send_result_events(self) -> None:
         # get information about all accounts that have been collected/updated
         async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
+            # fetch account information for last collect run (account nodes updated in the last hour).
             account_info = {
                 info["id"]: info
                 async for info in client.cli_execute(
                     "search is(account) and /metadata.exported_age<1h | jq {cloud: ./ancestors.cloud.reported.name, id:.id, name: .name, exported_at: ./metadata.exported_at, summary: ./metadata.descendant_summary}"  # noqa: E501
                 )
             }
+            # check if there were errors
+            messages = []
+            if self.task_id:
+                messages = [
+                    info
+                    async for info in client.cli_execute(f"workflows log {self.task_id} | head 100")
+                    if info != "No error messages for this run."
+                ]
+            # Synchronize security section, if account data was collected
+            if account_info:
+                benchmarks = [cfg async for cfg in client.cli_execute("report benchmark list")]
+                if benchmarks:
+                    bn = " ".join(benchmarks)
+                    log.info(f"Create reports for following benchmarks: {bn}")
+                    async for _ in client.cli_execute(
+                        f"report benchmark run {bn} --sync-security-section --run-id {self.task_id} | count",
+                        headers={"Accept": "application/json"},
+                    ):
+                        pass  # ignore the result
+
             # send a collect done event for the tenant
             await self.collect_done_publisher.publish(
                 "collect-done",
                 {
                     "job_id": self.job_id,
+                    "task_id": self.task_id,
                     "tenant_id": self.tenant_id,
                     "account_info": account_info,
+                    "messages": messages,
                     "started_at": utc_str(self.started_at),
                     "duration": int((utc() - self.started_at).total_seconds()),
                 },
             )
-
-            if True or account_info:  # only create reports, if account data was collected
-                benchmark_results = {}
-                benchmarks = [
-                    cfg.split("resoto.report.benchmark.", maxsplit=1)[-1]
-                    async for cfg in client.cli_execute("configs list")
-                    if cfg.startswith("resoto.report.benchmark.")
-                ]
-                for benchmark in benchmarks:
-                    report = [
-                        n
-                        async for n in client.cli_execute(
-                            f"report benchmark run {benchmark} | dump", headers={"Accept": "application/json"}
-                        )
-                    ]
-                    benchmark_results[benchmark] = report[0]  # result of first command
-
-                # send a report event for this tenant
-                await self.report_publisher.publish(
-                    "tenant_report",
-                    {
-                        "job_id": self.job_id,
-                        "tenant_id": self.tenant_id,
-                        "account_info": account_info,
-                        "started_at": utc_str(self.started_at),
-                        "duration": int((utc() - self.started_at).total_seconds()),
-                        "reports": benchmark_results,
-                    },
-                )
 
     async def sync(self) -> None:
         async with ProcessWrapper(self.core_args):
@@ -193,7 +187,7 @@ class CollectAndSync(Service):
                         log.info("Collect started. wait for the collect to finish")
                         await asyncio.wait_for(event_listener, 3600)  # wait up to 1 hour
                         log.info("Event listener done")
-                        await asyncio.wait_for(self.send_result_events(), 300)  # wait up to 5 minutes
+                        await asyncio.wait_for(self.send_result_events(), 600)  # wait up to 10 minutes
                     except Exception as ex:
                         log.info(f"Got exception {ex}. Giving up", exc_info=ex)
                         raise
