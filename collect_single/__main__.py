@@ -26,6 +26,7 @@ from typing import List, Tuple
 from redis.asyncio import Redis
 
 from collect_single.collect_and_sync import CollectAndSync
+from fixcloudutils.logging import setup_logger
 
 log = logging.getLogger("resoto.coordinator")
 
@@ -60,6 +61,11 @@ def main() -> None:
     parser.add_argument("--tenant-id", required=True, help="Id of the tenant")
     parser.add_argument("--redis-url", default="redis://localhost:6379/0", help="Redis host.")
     parsed = parser.parse_args(coordinator_args)
+
+    # setup logging
+    setup_logger("collect-single")
+
+    # write config files from env vars
     env_vars = {k.lower(): v for k, v in os.environ.items()}
     for home_path, env_var_name in parsed.write:
         path = (Path.home() / Path(home_path)).absolute()
