@@ -95,3 +95,29 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           provenance: false # Temporary workaround for https://github.com/docker/buildx/issues/1533
+
+      - name: Setup yq
+        uses: mikefarah/yq@master
+
+      - name: Authenticate with GitHub CLI
+        if: github.event_name != 'pull_request'
+        run: |
+          gh auth login --with-token <<< "${{ secrets.SOME_CI_PAT }}"
+
+      - name: Bump tag version
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SOME_CI_PAT }}
+        run: |
+          git config --global user.email "ci@some.engineering"
+          git config --global user.name "Some CI"
+          git clone "https://$GITHUB_TOKEN@github.com/someengineering/setup-infra.git"
+          git_sha="${{ github.sha }}"
+          short_sha="${git_sha:0:7}"
+          echo "Use short SHA: $short_sha"
+          # update the tag
+          cd setup-infra
+          yq eval "(.configMapGenerator[] | select(.name == \"fix-collect-coordinator-versions\") | .literals)[] |= sub(\"FIX_COLLECT_SINGLE_VERSION=.*\", \"FIX_COLLECT_SINGLE_VERSION=${short_sha}\")" -i argocd/envs/dev/fix-collect-coordinator/kustomization.yaml
+          git add .
+          git commit -m "Bump fix-collect-single on dev to ${short_sha}" 
+          git push origin main
