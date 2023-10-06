@@ -12,7 +12,7 @@ on:
 
 jobs:
   split-build:
-    name: Build split Docker images
+    name: Build Docker images
     runs-on: ubuntu-latest
 
     steps:
@@ -39,6 +39,13 @@ jobs:
         run: |
           echo ${{ steps.platform.outputs.targets }}
           echo ${{ steps.platform.outputs.latest }}
+
+      - name: Generate full hash
+        id: full_hash
+        run: |
+          RESOTO_SHORT_SHA=$(curl -s -H "Authorization: token ${{ secrets.SOME_CI_PAT }}" https://api.github.com/repos/someengineering/resoto/git/ref/heads/main | jq -r '.object.sha[:7]')
+          echo "Resulting combined hash is ${RESOTO_SHORT_SHA}_${GITHUB_SHA::7}"
+          echo "full_hash=${RESOTO_SHORT_SHA}_${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Docker metadata
         id: metadata
@@ -92,7 +99,7 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ steps.platform.outputs.targets }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.metadata.outputs.tags }}
+          tags: ${{ steps.metadata.outputs.tags }},"someengineering/fix-collect-single:${{ steps.full_hash.outputs.full_hash }}"
           labels: ${{ steps.metadata.outputs.labels }}
           provenance: false # Temporary workaround for https://github.com/docker/buildx/issues/1533
 
@@ -112,12 +119,9 @@ jobs:
           git config --global user.email "ci@some.engineering"
           git config --global user.name "Some CI"
           git clone "https://$GITHUB_TOKEN@github.com/someengineering/setup-infra.git"
-          git_sha="${{ github.sha }}"
-          short_sha="${git_sha:0:7}"
-          echo "Use short SHA: $short_sha"
           # update the tag
           cd setup-infra
-          yq eval "(.configMapGenerator[] | select(.name == \"fix-collect-coordinator-versions\") | .literals)[] |= sub(\"FIX_COLLECT_SINGLE_VERSION=.*\", \"FIX_COLLECT_SINGLE_VERSION=${short_sha}\")" -i argocd/envs/dev/fix-collect-coordinator/kustomization.yaml
+          yq eval "(.configMapGenerator[] | select(.name == \"fix-collect-coordinator-versions\") | .literals)[] |= sub(\"FIX_COLLECT_SINGLE_VERSION=.*\", \"FIX_COLLECT_SINGLE_VERSION=${{ steps.full_hash.outputs.full_hash }}\")" -i argocd/envs/dev/fix-collect-coordinator/kustomization.yaml
           git add .
           git commit -m "Bump fix-collect-single on dev to ${short_sha}" 
           git push origin main

@@ -1,4 +1,4 @@
-name: Check PR cloud2sql
+name: Check PR
 on:
   push:
     tags:
