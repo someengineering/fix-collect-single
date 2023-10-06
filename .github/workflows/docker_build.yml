@@ -12,7 +12,7 @@ on:
 
 jobs:
   split-build:
-    name: Build split Docker images
+    name: Build Docker images
     runs-on: ubuntu-latest
 
     steps:
