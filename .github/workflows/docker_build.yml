@@ -123,5 +123,5 @@ jobs:
           cd setup-infra
           yq eval "(.configMapGenerator[] | select(.name == \"fix-collect-coordinator-versions\") | .literals)[] |= sub(\"FIX_COLLECT_SINGLE_VERSION=.*\", \"FIX_COLLECT_SINGLE_VERSION=${{ steps.full_hash.outputs.full_hash }}\")" -i argocd/envs/dev/fix-collect-coordinator/kustomization.yaml
           git add .
-          git commit -m "Bump fix-collect-single on dev to ${short_sha}" 
+          git commit -m "Bump fix-collect-single on dev to ${{ steps.full_hash.outputs.full_hash }}" 
           git push origin main
