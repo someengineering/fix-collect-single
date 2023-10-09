@@ -33,7 +33,7 @@ clean-env: ## remove environment
 venv:
 	python3 -m venv venv --prompt "collect_single"
 	. ./venv/bin/activate && python3 -m pip install --upgrade pip
-	. ./venv/bin/activate && pip install -r ../resoto/requirements.txt
+	. ./venv/bin/activate && pip install -r ../resoto/requirements-test.txt
 	. ./venv/bin/activate && pip install -e ".[test]"
 
 lint: ## static code analysis
