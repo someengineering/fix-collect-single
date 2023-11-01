@@ -146,11 +146,15 @@ class CollectAndSync(Service):
                 benchmarks = [cfg async for cfg in client.cli_execute("report benchmark list")]
                 if benchmarks:
                     bn = " ".join(benchmarks)
-                    log.info(f"Create reports for following benchmarks: {bn}")
-                    async for _ in client.cli_execute(
-                        f"report benchmark run {bn} --sync-security-section --run-id {self.task_id} | count",
-                        headers={"Accept": "application/json"},
-                    ):
+                    accounts = " ".join(account_info.keys())
+                    command = (
+                        f"report benchmark run {bn} --accounts {accounts} --sync-security-section "
+                        f"--run-id {self.task_id} | count"
+                    )
+                    log.info(
+                        f"Create reports for following benchmarks: {bn} for accounts: {accounts}. Command: {command}"
+                    )
+                    async for _ in client.cli_execute(command, headers={"Accept": "application/json"}):
                         pass  # ignore the result
 
             # send a collect done event for the tenant
@@ -187,7 +191,8 @@ class CollectAndSync(Service):
                         log.info("Collect started. wait for the collect to finish")
                         await asyncio.wait_for(event_listener, 3600)  # wait up to 1 hour
                         log.info("Event listener done")
-                        await asyncio.wait_for(self.send_result_events(), 600)  # wait up to 10 minutes
                     except Exception as ex:
                         log.info(f"Got exception {ex}. Giving up", exc_info=ex)
                         raise
+                    finally:
+                        await asyncio.wait_for(self.send_result_events(), 600)  # wait up to 10 minutes
