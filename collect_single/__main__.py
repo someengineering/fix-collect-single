@@ -71,7 +71,10 @@ def main() -> None:
     parsed = parser.parse_args(coordinator_args)
 
     # setup logging
-    setup_logger("collect-single")
+    setup_logger(
+        "collect-single",
+        get_logging_context=lambda: dict(workspace_id=parsed.tenant_id, cloud_account_id=parsed.account_id),
+    )
 
     # write config files from env vars
     env_vars = {k.lower(): v for k, v in os.environ.items()}
