@@ -35,12 +35,14 @@ class CollectAndSync(Service):
         self,
         redis: Redis,
         tenant_id: str,
+        account_id: Optional[str],
         job_id: str,
         core_args: List[str],
         worker_args: List[str],
         core_url: str = "http://localhost:8980",
     ) -> None:
         self.tenant_id = tenant_id
+        self.account_id = account_id
         self.job_id = job_id
         self.core_args = ["resotocore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
         self.worker_args = ["resotoworker"] + worker_args
@@ -127,10 +129,11 @@ class CollectAndSync(Service):
         # get information about all accounts that have been collected/updated
         async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
             # fetch account information for last collect run (account nodes updated in the last hour).
+            account_filter = f" and id=={self.account_id}" if self.account_id else ""
             account_info = {
                 info["id"]: info
                 async for info in client.cli_execute(
-                    "search is(account) and /metadata.exported_age<1h | jq {cloud: ./ancestors.cloud.reported.name, id:.id, name: .name, exported_at: ./metadata.exported_at, summary: ./metadata.descendant_summary}"  # noqa: E501
+                    f"search is(account){account_filter} and /metadata.exported_age<1h | jq {{cloud: ./ancestors.cloud.reported.name, id:.id, name: .name, exported_at: ./metadata.exported_at, summary: ./metadata.descendant_summary}}"  # noqa: E501
                 )
             }
             # check if there were errors

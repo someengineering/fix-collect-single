@@ -13,7 +13,7 @@ dependencies = [
     "resotolib",
     "resotocore",
     "resotoworker",
-    "fixcloudutils[arango, redis] >= 1.7.1"
+    "fixcloudutils[arango, redis] >= 1.10.0"
 ]
 
 [project.optional-dependencies]

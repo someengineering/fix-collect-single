@@ -42,7 +42,7 @@ async def startup(args: Namespace, core_args: List[str], worker_args: List[str])
     if args.redis_url.startswith("rediss://") and args.ca_cert:
         redis_args["ssl_ca_certs"] = args.ca_cert
     redis = Redis.from_url(args.redis_url, decode_responses=True, **redis_args)
-    collect_and_sync = CollectAndSync(redis, args.tenant_id, args.job_id, core_args, worker_args)
+    collect_and_sync = CollectAndSync(redis, args.tenant_id, args.account_id, args.job_id, core_args, worker_args)
     await collect_and_sync.sync()
 
 
@@ -64,6 +64,7 @@ def main() -> None:
     )
     parser.add_argument("--job-id", required=True, help="Job Id of the coordinator")
     parser.add_argument("--tenant-id", required=True, help="Id of the tenant")
+    parser.add_argument("--account-id", help="Id of the account")
     parser.add_argument("--redis-url", default="redis://localhost:6379/0", help="Redis host.")
     parser.add_argument("--redis-password", default=os.environ.get("REDIS_PASSWORD"), help="Redis password")
     parser.add_argument("--ca-cert", help="Path to CA cert file")
