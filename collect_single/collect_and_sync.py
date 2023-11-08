@@ -16,9 +16,9 @@
 
 import asyncio
 import logging
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 
-from fixcloudutils.redis.event_stream import RedisStreamPublisher
+from fixcloudutils.redis.event_stream import RedisStreamPublisher, Json
 from fixcloudutils.redis.pub_sub import RedisPubSubPublisher
 from fixcloudutils.service import Service
 from fixcloudutils.util import utc, utc_str
@@ -125,7 +125,7 @@ class CollectAndSync(Service):
         else:
             raise Exception("Could not start collect workflow")
 
-    async def send_result_events(self) -> None:
+    async def post_process(self) -> Tuple[Json, List[str]]:
         # get information about all accounts that have been collected/updated
         async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
             # fetch account information for last collect run (account nodes updated in the last hour).
@@ -159,43 +159,52 @@ class CollectAndSync(Service):
                     )
                     async for _ in client.cli_execute(command, headers={"Accept": "application/json"}):
                         pass  # ignore the result
+            return account_info, messages
 
-            # send a collect done event for the tenant
-            await self.collect_done_publisher.publish(
-                "collect-done",
-                {
-                    "job_id": self.job_id,
-                    "task_id": self.task_id,
-                    "tenant_id": self.tenant_id,
-                    "account_info": account_info,
-                    "messages": messages,
-                    "started_at": utc_str(self.started_at),
-                    "duration": int((utc() - self.started_at).total_seconds()),
-                },
-            )
+    async def send_result_events(self, read_from_process: bool, error_messages: Optional[List[str]] = None) -> None:
+        account_info, messages = await self.post_process() if read_from_process else ({}, error_messages or [])
+        # send a collect done event for the tenant
+        await self.collect_done_publisher.publish(
+            "collect-done",
+            {
+                "job_id": self.job_id,
+                "task_id": self.task_id,
+                "tenant_id": self.tenant_id,
+                "account_info": account_info,
+                "messages": messages,
+                "started_at": utc_str(self.started_at),
+                "duration": int((utc() - self.started_at).total_seconds()),
+            },
+        )
 
     async def sync(self) -> None:
-        async with ProcessWrapper(self.core_args):
-            log.info("Core started.")
-            async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
-                log.info("Core client connected")
-                # wait up to 5 minutes for all running workflows to finish
-                await asyncio.wait_for(self.wait_for_collect_tasks_to_finish(client), timeout=300)
-                log.info("All collect workflows finished")
-                async with ProcessWrapper(self.worker_args):
-                    log.info("Worker started")
-                    try:
-                        # wait for worker to be connected
-                        event_listener = asyncio.create_task(self.listen_to_events_until_collect_done(client))
-                        # wait for worker to be connected
-                        await asyncio.wait_for(self.wait_for_worker_connected(client), timeout=60)
-                        log.info("Worker connected")
-                        await self.start_collect(client)
-                        log.info("Collect started. wait for the collect to finish")
-                        await asyncio.wait_for(event_listener, 3600)  # wait up to 1 hour
-                        log.info("Event listener done")
-                    except Exception as ex:
-                        log.info(f"Got exception {ex}. Giving up", exc_info=ex)
-                        raise
-                    finally:
-                        await asyncio.wait_for(self.send_result_events(), 600)  # wait up to 10 minutes
+        result_send = False
+        try:
+            async with ProcessWrapper(self.core_args):
+                log.info("Core started.")
+                async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
+                    log.info("Core client connected")
+                    # wait up to 5 minutes for all running workflows to finish
+                    await asyncio.wait_for(self.wait_for_collect_tasks_to_finish(client), timeout=300)
+                    log.info("All collect workflows finished")
+                    async with ProcessWrapper(self.worker_args):
+                        log.info("Worker started")
+                        try:
+                            # wait for worker to be connected
+                            event_listener = asyncio.create_task(self.listen_to_events_until_collect_done(client))
+                            # wait for worker to be connected
+                            await asyncio.wait_for(self.wait_for_worker_connected(client), timeout=60)
+                            log.info("Worker connected")
+                            await self.start_collect(client)
+                            log.info("Collect started. wait for the collect to finish")
+                            await asyncio.wait_for(event_listener, 3600)  # wait up to 1 hour
+                            log.info("Event listener done")
+                        except Exception as ex:
+                            log.info(f"Got exception {ex}. Giving up", exc_info=ex)
+                            raise
+                        finally:
+                            await asyncio.wait_for(self.send_result_events(True), 600)  # wait up to 10 minutes
+                            result_send = True
+        except Exception as ex:
+            if not result_send:
+                await asyncio.wait_for(self.send_result_events(False, [str(ex)]), 600)  # wait up to 10 minutes
