@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import json
 import logging
 from asyncio import Future, streams
 from asyncio.subprocess import Process
@@ -23,6 +24,7 @@ from signal import SIGKILL
 from typing import List, Optional, Any
 
 from fixcloudutils.service import Service
+from fixcloudutils.logging.prometheus_counter import LogRecordCounter
 from resotolib.proc import kill_children
 
 log = logging.getLogger("resoto.coordinator")
@@ -37,6 +39,10 @@ class ProcessWrapper(Service):
     async def read_stream(self, stream: streams.StreamReader) -> None:
         while True:
             line = await stream.readline()
+            # count log lines by level
+            with suppress(Exception):
+                if level := json.loads(line).get("level"):
+                    LogRecordCounter.labels(component="collect-single", level=level).inc()
             if line:
                 print(line.decode("utf-8").strip())
             else:

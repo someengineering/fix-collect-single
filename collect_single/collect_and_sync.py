@@ -24,6 +24,7 @@ from fixcloudutils.service import Service
 from fixcloudutils.util import utc, utc_str
 from redis.asyncio import Redis
 from resotoclient.async_client import ResotoClient
+import prometheus_client
 
 from collect_single.process import ProcessWrapper
 
@@ -39,6 +40,7 @@ class CollectAndSync(Service):
         job_id: str,
         core_args: List[str],
         worker_args: List[str],
+        metrics_push_gateway: Optional[str] = None,
         core_url: str = "http://localhost:8980",
     ) -> None:
         self.tenant_id = tenant_id
@@ -48,10 +50,12 @@ class CollectAndSync(Service):
         self.worker_args = ["resotoworker"] + worker_args
         self.core_url = core_url
         self.task_id: Optional[str] = None
+        self.metrics_push_gateway = metrics_push_gateway
         publisher = "collect-and-sync"
         self.progress_update_publisher = RedisPubSubPublisher(redis, f"tenant-events::{tenant_id}", publisher)
         self.collect_done_publisher = RedisStreamPublisher(redis, "collect-events", publisher)
         self.started_at = utc()
+        self.worker_connected = asyncio.Event()
 
     async def start(self) -> Any:
         await self.progress_update_publisher.start()
@@ -71,27 +75,36 @@ class CollectAndSync(Service):
                 await asyncio.sleep(1)
 
     async def listen_to_events_until_collect_done(self, client: ResotoClient) -> bool:
-        async for event in client.events({"progress", "error", "task_end"}):
-            message_type = event.get("message_type", "")
+        async for event in client.events():
+            msg_type = event.get("message_type", "")
+            kind = event.get("kind", "")
             data = event.get("data", {})
-            if message_type == "progress":
+            if kind == "action":
+                log.info(f"Received action event. Ignore. {msg_type}")
+            elif msg_type == "progress":
                 log.info("Received progress event. Publish via redis")
                 await self.progress_update_publisher.publish("collect-progress", data)
-            elif message_type == "error":
-                log.info("Received info message. Publish via redis")
-                await self.progress_update_publisher.publish("collect-error", data)
-            elif message_type == "task_end" and self.task_id and data.get("task_id", "") == self.task_id:
+            elif msg_type == "error":
+                log.info("Received info message.")
+                # await self.progress_update_publisher.publish("collect-error", data)
+                # Ignore errors for now
+                pass
+            elif msg_type == "task_end" and self.task_id and data.get("task_id", "") == self.task_id:
                 log.info("Received Task End event. Exit.")
                 return True
+            elif msg_type == "message-listener-connected" and data.get("subscriber_id") == "resoto.worker-collector":
+                log.info("Received worker connected event. Mark.")
+                self.worker_connected.set()
             else:
-                log.info(f"Received event. Waiting for task {self.task_id}. Ignore: {event}")
+                log.info(f"Received event. Ignore: {event}")
         return False
 
     async def wait_for_worker_connected(self, client: ResotoClient) -> None:
         while True:
             res = await client.subscribers_for_event("collect")
             if len(res) > 0:
-                log.info(f"Found subscribers for collect event: {res}")
+                log.info(f"Found subscribers for collect event: {res}. Wait for worker to connect.")
+                await self.worker_connected.wait()
                 return
             log.info("Wait for worker to connect.")
             await asyncio.sleep(1)
@@ -177,6 +190,14 @@ class CollectAndSync(Service):
             },
         )
 
+    async def push_metrics(self) -> None:
+        if gateway := self.metrics_push_gateway:
+            # Possible future option: retrieve metrics from core and worker and push them to prometheus
+            prometheus_client.push_to_gateway(
+                gateway=gateway, job="collect_single", registry=prometheus_client.REGISTRY
+            )
+            log.info("Metrics pushed to gateway")
+
     async def sync(self) -> None:
         result_send = False
         try:
@@ -199,6 +220,7 @@ class CollectAndSync(Service):
                             log.info("Collect started. wait for the collect to finish")
                             await asyncio.wait_for(event_listener, 3600)  # wait up to 1 hour
                             log.info("Event listener done")
+                            await self.push_metrics()
                         except Exception as ex:
                             log.info(f"Got exception {ex}. Giving up", exc_info=ex)
                             raise
