@@ -74,6 +74,7 @@ def main() -> None:
     setup_logger(
         "collect-single",
         get_logging_context=lambda: dict(
+            job_id=parsed.job_id,
             workspace_id=parsed.tenant_id,
             cloud_account_id=parsed.account_id,
             process="coordinator",
