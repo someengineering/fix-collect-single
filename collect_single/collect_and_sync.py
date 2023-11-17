@@ -34,13 +34,14 @@ log = logging.getLogger("resoto.coordinator")
 class CollectAndSync(Service):
     def __init__(
         self,
+        *,
         redis: Redis,
         tenant_id: str,
         account_id: Optional[str],
         job_id: str,
         core_args: List[str],
         worker_args: List[str],
-        metrics_push_gateway: Optional[str] = None,
+        push_gateway_url: Optional[str] = None,
         core_url: str = "http://localhost:8980",
     ) -> None:
         self.tenant_id = tenant_id
@@ -50,7 +51,7 @@ class CollectAndSync(Service):
         self.worker_args = ["resotoworker"] + worker_args
         self.core_url = core_url
         self.task_id: Optional[str] = None
-        self.metrics_push_gateway = metrics_push_gateway
+        self.push_gateway_url = push_gateway_url
         publisher = "collect-and-sync"
         self.progress_update_publisher = RedisPubSubPublisher(redis, f"tenant-events::{tenant_id}", publisher)
         self.collect_done_publisher = RedisStreamPublisher(redis, "collect-events", publisher)
@@ -191,7 +192,7 @@ class CollectAndSync(Service):
         )
 
     async def push_metrics(self) -> None:
-        if gateway := self.metrics_push_gateway:
+        if gateway := self.push_gateway_url:
             # Possible future option: retrieve metrics from core and worker and push them to prometheus
             prometheus_client.push_to_gateway(
                 gateway=gateway, job="collect_single", registry=prometheus_client.REGISTRY

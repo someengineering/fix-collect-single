@@ -41,7 +41,9 @@ async def test_client(core_client: ResotoClient) -> None:
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
 async def test_collect_and_sync(redis: Redis, core_client: ResotoClient) -> None:
-    cs = CollectAndSync(redis, "tenant_id", "account_id", "job_id", [], [])
+    cs = CollectAndSync(
+        redis=redis, tenant_id="tenant_id", account_id="account_id", job_id="job_id", core_args=[], worker_args=[]
+    )
     await cs.send_result_events(True)
 
 
