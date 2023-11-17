@@ -21,7 +21,7 @@ from asyncio import Future, streams
 from asyncio.subprocess import Process
 from contextlib import suppress
 from signal import SIGKILL
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
 from fixcloudutils.service import Service
 from fixcloudutils.logging.prometheus_counter import LogRecordCounter
@@ -31,22 +31,24 @@ log = logging.getLogger("resoto.coordinator")
 
 
 class ProcessWrapper(Service):
-    def __init__(self, cmd: List[str]) -> None:
+    def __init__(self, cmd: List[str], logging_context: Dict[str, str]) -> None:
         self.cmd = cmd
+        self.logging_context = logging_context
         self.process: Optional[Process] = None
         self.reader: Optional[Future[Any]] = None
 
     async def read_stream(self, stream: streams.StreamReader) -> None:
-        while True:
-            line = await stream.readline()
-            # count log lines by level
-            with suppress(Exception):
-                if level := json.loads(line).get("level"):
+        while line := await stream.readline():
+            try:
+                # try handling json
+                log_js = json.loads(line)
+                if level := log_js.get("level"):
                     LogRecordCounter.labels(component="collect-single", level=level).inc()
-            if line:
+                log_js.update(self.logging_context)
+                print(json.dumps(log_js))
+            except Exception:
+                # if we come here, something went wrong: print the line as is
                 print(line.decode("utf-8").strip())
-            else:
-                await asyncio.sleep(0.1)
 
     async def start(self) -> None:
         process = await asyncio.create_subprocess_exec(

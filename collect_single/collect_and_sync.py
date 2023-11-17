@@ -16,7 +16,7 @@
 
 import asyncio
 import logging
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 
 from fixcloudutils.redis.event_stream import RedisStreamPublisher, Json
 from fixcloudutils.redis.pub_sub import RedisPubSubPublisher
@@ -41,6 +41,7 @@ class CollectAndSync(Service):
         job_id: str,
         core_args: List[str],
         worker_args: List[str],
+        logging_context: Dict[str, str],
         push_gateway_url: Optional[str] = None,
         core_url: str = "http://localhost:8980",
     ) -> None:
@@ -49,6 +50,7 @@ class CollectAndSync(Service):
         self.job_id = job_id
         self.core_args = ["resotocore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
         self.worker_args = ["resotoworker"] + worker_args
+        self.logging_context = logging_context
         self.core_url = core_url
         self.task_id: Optional[str] = None
         self.push_gateway_url = push_gateway_url
@@ -202,14 +204,14 @@ class CollectAndSync(Service):
     async def sync(self) -> None:
         result_send = False
         try:
-            async with ProcessWrapper(self.core_args):
+            async with ProcessWrapper(self.core_args, self.logging_context):
                 log.info("Core started.")
                 async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
                     log.info("Core client connected")
                     # wait up to 5 minutes for all running workflows to finish
                     await asyncio.wait_for(self.wait_for_collect_tasks_to_finish(client), timeout=300)
                     log.info("All collect workflows finished")
-                    async with ProcessWrapper(self.worker_args):
+                    async with ProcessWrapper(self.worker_args, self.logging_context):
                         log.info("Worker started")
                         try:
                             # wait for worker to be connected

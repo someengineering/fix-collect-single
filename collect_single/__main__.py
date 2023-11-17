@@ -21,7 +21,7 @@ import sys
 from argparse import Namespace, ArgumentParser
 from itertools import takewhile
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 from redis.asyncio import Redis
 
@@ -35,7 +35,9 @@ def kv_pairs(s: str) -> Tuple[str, str]:
     return tuple(s.split("=", maxsplit=1))  # type: ignore
 
 
-async def startup(args: Namespace, core_args: List[str], worker_args: List[str]) -> None:
+async def startup(
+    args: Namespace, core_args: List[str], worker_args: List[str], logging_context: Dict[str, str]
+) -> None:
     redis_args = {}
     if args.redis_password:
         redis_args["password"] = args.redis_password
@@ -50,6 +52,7 @@ async def startup(args: Namespace, core_args: List[str], worker_args: List[str])
         core_args=core_args,
         worker_args=worker_args,
         push_gateway_url=args.push_gateway_url,
+        logging_context=logging_context,
     )
     await collect_and_sync.sync()
 
@@ -80,15 +83,8 @@ def main() -> None:
     parsed = parser.parse_args(coordinator_args)
 
     # setup logging
-    setup_logger(
-        "collect-single",
-        get_logging_context=lambda: dict(
-            job_id=parsed.job_id,
-            workspace_id=parsed.tenant_id,
-            cloud_account_id=parsed.account_id,
-            process="coordinator",
-        ),
-    )
+    logging_context = dict(job_id=parsed.job_id, workspace_id=parsed.tenant_id, cloud_account_id=parsed.account_id)
+    setup_logger("collect-single", get_logging_context=lambda: {"process": "coordinator", **logging_context})
 
     # write config files from env vars
     env_vars = {k.lower(): v for k, v in os.environ.items()}
@@ -102,7 +98,7 @@ def main() -> None:
             f.write(content)
 
     log.info(f"Coordinator args:({coordinator_args}) Core args:({core_args}) Worker args:({worker_args})")
-    asyncio.run(startup(parsed, core_args, worker_args))
+    asyncio.run(startup(parsed, core_args, worker_args, logging_context))
 
 
 if __name__ == "__main__":
