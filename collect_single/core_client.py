@@ -8,6 +8,8 @@ from typing import Any, Optional, Dict, List
 from fixcloudutils.types import Json
 from resotoclient import Subscriber
 from resotoclient.async_client import ResotoClient
+from resotocore.query import query_parser, Query
+from resotocore.query.model import P
 
 log = logging.getLogger("resoto.coordinator")
 
@@ -58,15 +60,11 @@ class CoreClient:
     async def list_benchmarks(self) -> List[str]:
         return [cfg async for cfg in self.client.cli_execute("report benchmark list")]
 
-    async def create_benchmark_reports(
-        self, account_ids: List[str], benchmarks: List[str], task_id: Optional[str]
-    ) -> None:
-        assert isinstance(account_ids, List), "account_ids must be a collection"
+    async def create_benchmark_reports(self, account_id: str, benchmarks: List[str], task_id: Optional[str]) -> None:
         bn = " ".join(benchmarks)
-        ac = " ".join(account_ids)
         run_id = task_id or str(uuid.uuid4())
-        command = f"report benchmark run {bn} --accounts {ac} --sync-security-section --run-id {run_id} | count"
-        log.info(f"Create reports for following benchmarks: {bn} for accounts: {ac}. Command: {command}")
+        command = f"report benchmark run {bn} --accounts {account_id} --sync-security-section --run-id {run_id} | count"
+        log.info(f"Create reports for following benchmarks: {bn} for accounts: {account_id}. Command: {command}")
         async for _ in self.client.cli_execute(command, headers={"Accept": "application/json"}):
             pass  # ignore the result
 
@@ -91,3 +89,15 @@ class CoreClient:
                 return res  # type: ignore
             log.info("Wait for worker to connect.")
             await asyncio.sleep(1)
+
+    async def time_series_snapshot(self, time_series: str, aggregation_query: str, account_id: str) -> int:
+        query = query_parser.parse_query(aggregation_query).combine(
+            Query.by(P("/ancestors.account.reported.id").eq(account_id))
+        )
+        async for single in self.client.cli_execute(f"timeseries snapshot --name {time_series} {query}"):
+            try:
+                first, rest = single.split(" ", maxsplit=1)
+                return int(first)
+            except Exception:
+                log.error(f"Failed to parse timeseries snapshot result: {single}")
+        return 0

@@ -30,6 +30,17 @@ from collect_single.process import ProcessWrapper
 
 log = logging.getLogger("resoto.coordinator")
 
+SNAPSHOT_METRICS = {
+    # count the number of infected resources by severity, cloud and account
+    "infected_resources": "aggregate(/security.severity as severity, "
+    "/ancestors.account.reported.id as account_id, "
+    "/ancestors.cloud.reported.id as cloud_id: sum(1) as count): /security.has_issues==true",
+    # count the number of resources by kind, cloud and account
+    "resources": "aggregate(/reported.kind as kind, "
+    "/ancestors.account.reported.id as account_id,"
+    "/ancestors.cloud.reported.id as cloud_id: sum(1) as count): all",
+}
+
 
 class CollectAndSync(Service):
     def __init__(
@@ -111,11 +122,17 @@ class CollectAndSync(Service):
         account_info = await self.core_client.account_info(self.account_id)
         # check if there were errors
         messages = await self.core_client.workflow_log(self.task_id) if self.task_id else []
-        # Synchronize the security section if account data was collected
-        if account_info:
+        # post process the data, if something has been collected
+        if account_info and (account_id := self.account_id):
+            # synchronize the security section
             benchmarks = await self.core_client.list_benchmarks()
             if benchmarks:
-                await self.core_client.create_benchmark_reports(list(account_info.keys()), benchmarks, self.task_id)
+                await self.core_client.create_benchmark_reports(account_id, benchmarks, self.task_id)
+            # create metrics
+            for name, query in SNAPSHOT_METRICS.items():
+                res = await self.core_client.time_series_snapshot(name, query, account_id)
+                log.info(f"Created timeseries snapshot: {name} created {res} entries")
+
         return account_info, messages
 
     async def send_result_events(self, read_from_process: bool, error_messages: Optional[List[str]] = None) -> None:
