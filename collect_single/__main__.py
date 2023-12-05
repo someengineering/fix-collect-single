@@ -43,18 +43,18 @@ async def startup(
         redis_args["password"] = args.redis_password
     if args.redis_url.startswith("rediss://") and args.ca_cert:
         redis_args["ssl_ca_certs"] = args.ca_cert
-    redis = Redis.from_url(args.redis_url, decode_responses=True, **redis_args)
-    collect_and_sync = CollectAndSync(
-        redis=redis,
-        tenant_id=args.tenant_id,
-        account_id=args.account_id,
-        job_id=args.job_id,
-        core_args=core_args,
-        worker_args=worker_args,
-        push_gateway_url=args.push_gateway_url,
-        logging_context=logging_context,
-    )
-    await collect_and_sync.sync()
+    async with Redis.from_url(args.redis_url, decode_responses=True, **redis_args) as redis:
+        collect_and_sync = CollectAndSync(
+            redis=redis,
+            tenant_id=args.tenant_id,
+            account_id=args.account_id,
+            job_id=args.job_id,
+            core_args=core_args,
+            worker_args=worker_args,
+            push_gateway_url=args.push_gateway_url,
+            logging_context=logging_context,
+        )
+        await collect_and_sync.sync()
 
 
 def main() -> None:

@@ -34,7 +34,11 @@ venv:
 	python3 -m venv venv --prompt "collect_single"
 	. ./venv/bin/activate && python3 -m pip install --upgrade pip
 	. ./venv/bin/activate && pip install -r ../resoto/requirements-test.txt
+	. ./venv/bin/activate && pip install ../resoto/resotolib ../resoto/resotocore ../resoto/resotoworker ../resoto/plugins/k8s ../resoto/plugins/aws
 	. ./venv/bin/activate && pip install -e ".[test]"
+
+test:
+	pytest
 
 lint: ## static code analysis
 	black --line-length 120 --check collect_single tests

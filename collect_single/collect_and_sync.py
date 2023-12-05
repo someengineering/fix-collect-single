@@ -23,9 +23,9 @@ from fixcloudutils.redis.pub_sub import RedisPubSubPublisher
 from fixcloudutils.service import Service
 from fixcloudutils.util import utc, utc_str
 from redis.asyncio import Redis
-from resotoclient.async_client import ResotoClient
 import prometheus_client
 
+from collect_single.core_client import CoreClient
 from collect_single.process import ProcessWrapper
 
 log = logging.getLogger("resoto.coordinator")
@@ -51,7 +51,7 @@ class CollectAndSync(Service):
         self.core_args = ["resotocore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
         self.worker_args = ["resotoworker"] + worker_args
         self.logging_context = logging_context
-        self.core_url = core_url
+        self.core_client = CoreClient(core_url)
         self.task_id: Optional[str] = None
         self.push_gateway_url = push_gateway_url
         publisher = "collect-and-sync"
@@ -68,17 +68,8 @@ class CollectAndSync(Service):
         await self.progress_update_publisher.stop()
         await self.collect_done_publisher.stop()
 
-    async def core_client(self) -> ResotoClient:
-        client = ResotoClient(self.core_url)
-        while True:
-            try:
-                await client.ping()
-                return client
-            except Exception:
-                await asyncio.sleep(1)
-
-    async def listen_to_events_until_collect_done(self, client: ResotoClient) -> bool:
-        async for event in client.events():
+    async def listen_to_events_until_collect_done(self) -> bool:
+        async for event in self.core_client.client.events():
             msg_type = event.get("message_type", "")
             kind = event.get("kind", "")
             data = event.get("data", {})
@@ -102,39 +93,13 @@ class CollectAndSync(Service):
                 log.info(f"Received event. Ignore: {event}")
         return False
 
-    async def wait_for_worker_connected(self, client: ResotoClient) -> None:
-        while True:
-            res = await client.subscribers_for_event("collect")
-            if len(res) > 0:
-                log.info(f"Found subscribers for collect event: {res}. Wait for worker to connect.")
-                await self.worker_connected.wait()
-                return
-            log.info("Wait for worker to connect.")
-            await asyncio.sleep(1)
-
-    async def wait_for_collect_tasks_to_finish(self, client: ResotoClient) -> None:
-        while True:
-            running = [
-                entry async for entry in client.cli_execute("workflows running") if entry.get("workflow") != "collect"
-            ]
-            if len(running) == 0:
-                return
-            else:
-                log.info(f"Wait for running workflows to finish. Running: {running}")
-                await asyncio.sleep(5)
-
-    async def start_collect(self, client: ResotoClient) -> None:
-        running = [
-            entry async for entry in client.cli_execute("workflows running") if entry.get("workflow") == "collect"
-        ]
+    async def start_collect(self) -> None:
+        running = await self.core_client.workflows_running("collect")
         if not running:
             log.info("No collect workflow running. Start one.")
             # start a workflow
-            async for result in client.cli_execute("workflow run collect"):
-                pass
-            running = [
-                entry async for entry in client.cli_execute("workflows running") if entry.get("workflow") == "collect"
-            ]
+            await self.core_client.start_workflow("collect")
+            running = await self.core_client.workflows_running("collect")
         log.info(f"All running collect workflows: {running}")
         if running:
             self.task_id = running[0]["task-id"]
@@ -143,39 +108,15 @@ class CollectAndSync(Service):
 
     async def post_process(self) -> Tuple[Json, List[str]]:
         # get information about all accounts that have been collected/updated
-        async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
-            # fetch account information for last collect run (account nodes updated in the last hour).
-            account_filter = f" and id=={self.account_id}" if self.account_id else ""
-            account_info = {
-                info["id"]: info
-                async for info in client.cli_execute(
-                    f"search is(account){account_filter} and /metadata.exported_age<1h | jq {{cloud: ./ancestors.cloud.reported.name, id:.id, name: .name, exported_at: ./metadata.exported_at, summary: ./metadata.descendant_summary}}"  # noqa: E501
-                )
-            }
-            # check if there were errors
-            messages = []
-            if self.task_id:
-                messages = [
-                    info
-                    async for info in client.cli_execute(f"workflows log {self.task_id} | head 100")
-                    if info != "No error messages for this run."
-                ]
-            # Synchronize security section, if account data was collected
-            if account_info:
-                benchmarks = [cfg async for cfg in client.cli_execute("report benchmark list")]
-                if benchmarks:
-                    bn = " ".join(benchmarks)
-                    accounts = " ".join(account_info.keys())
-                    command = (
-                        f"report benchmark run {bn} --accounts {accounts} --sync-security-section "
-                        f"--run-id {self.task_id} | count"
-                    )
-                    log.info(
-                        f"Create reports for following benchmarks: {bn} for accounts: {accounts}. Command: {command}"
-                    )
-                    async for _ in client.cli_execute(command, headers={"Accept": "application/json"}):
-                        pass  # ignore the result
-            return account_info, messages
+        account_info = await self.core_client.account_info(self.account_id)
+        # check if there were errors
+        messages = await self.core_client.workflow_log(self.task_id) if self.task_id else []
+        # Synchronize the security section if account data was collected
+        if account_info:
+            benchmarks = await self.core_client.list_benchmarks()
+            if benchmarks:
+                await self.core_client.create_benchmark_reports(list(account_info.keys()), benchmarks, self.task_id)
+        return account_info, messages
 
     async def send_result_events(self, read_from_process: bool, error_messages: Optional[List[str]] = None) -> None:
         account_info, messages = await self.post_process() if read_from_process else ({}, error_messages or [])
@@ -206,20 +147,22 @@ class CollectAndSync(Service):
         try:
             async with ProcessWrapper(self.core_args, self.logging_context):
                 log.info("Core started.")
-                async with await asyncio.wait_for(self.core_client(), timeout=60) as client:
+                async with await asyncio.wait_for(self.core_client.wait_connected(), timeout=60):
                     log.info("Core client connected")
                     # wait up to 5 minutes for all running workflows to finish
-                    await asyncio.wait_for(self.wait_for_collect_tasks_to_finish(client), timeout=300)
+                    await asyncio.wait_for(self.core_client.wait_for_collect_tasks_to_finish(), timeout=300)
                     log.info("All collect workflows finished")
                     async with ProcessWrapper(self.worker_args, self.logging_context):
                         log.info("Worker started")
                         try:
                             # wait for worker to be connected
-                            event_listener = asyncio.create_task(self.listen_to_events_until_collect_done(client))
+                            event_listener = asyncio.create_task(self.listen_to_events_until_collect_done())
                             # wait for worker to be connected
-                            await asyncio.wait_for(self.wait_for_worker_connected(client), timeout=60)
+                            subs = await asyncio.wait_for(self.core_client.wait_for_worker_subscribed(), timeout=60)
+                            log.info(f"Found subscribers for collect event: {subs}. Wait for worker to connect.")
+                            await asyncio.wait_for(self.worker_connected.wait(), timeout=60)
                             log.info("Worker connected")
-                            await self.start_collect(client)
+                            await self.start_collect()
                             log.info("Collect started. wait for the collect to finish")
                             await asyncio.wait_for(event_listener, 3600)  # wait up to 1 hour
                             log.info("Event listener done")
