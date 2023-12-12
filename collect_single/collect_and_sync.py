@@ -132,6 +132,8 @@ class CollectAndSync(Service):
             for name, query in SNAPSHOT_METRICS.items():
                 res = await self.core_client.time_series_snapshot(name, query, account_id)
                 log.info(f"Created timeseries snapshot: {name} created {res} entries")
+        else:
+            raise ValueError("No account info found. Give up!")
 
         return account_info, messages
 
@@ -159,7 +161,7 @@ class CollectAndSync(Service):
             )
             log.info("Metrics pushed to gateway")
 
-    async def sync(self) -> None:
+    async def sync(self, send_on_failed: bool) -> bool:
         result_send = False
         try:
             async with ProcessWrapper(self.core_args, self.logging_context):
@@ -191,5 +193,8 @@ class CollectAndSync(Service):
                             await asyncio.wait_for(self.send_result_events(True), 600)  # wait up to 10 minutes
                             result_send = True
         except Exception as ex:
-            if not result_send:
+            log.info(f"Got Exception during sync: {ex}")
+            if send_on_failed and not result_send:
                 await asyncio.wait_for(self.send_result_events(False, [str(ex)]), 600)  # wait up to 10 minutes
+                result_send = True
+        return result_send
