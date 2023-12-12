@@ -19,14 +19,16 @@ import logging
 import os
 import sys
 from argparse import Namespace, ArgumentParser
+from datetime import timedelta
 from itertools import takewhile
 from pathlib import Path
 from typing import List, Tuple, Dict
 
+from fixcloudutils.logging import setup_logger
+from fixcloudutils.util import utc
 from redis.asyncio import Redis
 
 from collect_single.collect_and_sync import CollectAndSync
-from fixcloudutils.logging import setup_logger
 
 log = logging.getLogger("resoto.coordinator")
 
@@ -44,17 +46,36 @@ async def startup(
     if args.redis_url.startswith("rediss://") and args.ca_cert:
         redis_args["ssl_ca_certs"] = args.ca_cert
     async with Redis.from_url(args.redis_url, decode_responses=True, **redis_args) as redis:
-        collect_and_sync = CollectAndSync(
-            redis=redis,
-            tenant_id=args.tenant_id,
-            account_id=args.account_id,
-            job_id=args.job_id,
-            core_args=core_args,
-            worker_args=worker_args,
-            push_gateway_url=args.push_gateway_url,
-            logging_context=logging_context,
-        )
-        await collect_and_sync.sync()
+
+        async def collect_and_sync(send_on_failed: bool) -> bool:
+            async with CollectAndSync(
+                redis=redis,
+                tenant_id=args.tenant_id,
+                account_id=args.account_id,
+                job_id=args.job_id,
+                core_args=core_args,
+                worker_args=worker_args,
+                push_gateway_url=args.push_gateway_url,
+                logging_context=logging_context,
+            ) as cas:
+                return await cas.sync(send_on_failed)
+
+        if retry := args.retry_failed_for:
+            log.info(f"Collect job with retry enabled for {retry}.")
+            has_result = False
+            deadline = utc() + retry
+            while not has_result and utc() < deadline:
+                # collect and do not send a message in the failing case
+                has_result = await collect_and_sync(False)
+                if not has_result:
+                    log.info("Failed collect with retry enabled. Retrying in 30s.")
+                    await asyncio.sleep(30)
+            # if we come here without a result, collect and also send a message in the failing case
+            if not has_result:
+                log.info("Last attempt to collect with retry enabled.")
+                await collect_and_sync(True)
+        else:
+            await collect_and_sync(True)
 
 
 def main() -> None:
@@ -80,6 +101,9 @@ def main() -> None:
     parser.add_argument("--redis-password", default=os.environ.get("REDIS_PASSWORD"), help="Redis password")
     parser.add_argument("--push-gateway-url", help="Prometheus push gateway url")
     parser.add_argument("--ca-cert", help="Path to CA cert file")
+    parser.add_argument(
+        "--retry-failed-for", type=lambda x: timedelta(seconds=int(x)), help="Seconds to retry failed jobs."
+    )
     parsed = parser.parse_args(coordinator_args)
 
     # setup logging
