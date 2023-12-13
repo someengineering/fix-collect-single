@@ -102,7 +102,7 @@ def main() -> None:
     parser.add_argument("--push-gateway-url", help="Prometheus push gateway url")
     parser.add_argument("--ca-cert", help="Path to CA cert file")
     parser.add_argument(
-        "--retry-failed-for", type=lambda x: timedelta(seconds=int(x)), help="Seconds to retry failed jobs."
+        "--retry-failed-for", type=lambda x: timedelta(seconds=float(x)), help="Seconds to retry failed jobs."
     )
     parsed = parser.parse_args(coordinator_args)
 
