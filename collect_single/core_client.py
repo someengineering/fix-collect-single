@@ -5,7 +5,7 @@ import logging
 import uuid
 from typing import Any, Optional, Dict, List
 
-from fixcloudutils.types import Json
+from fixcloudutils.types import Json, JsonElement
 from resotoclient import Subscriber
 from resotoclient.async_client import ResotoClient
 from resotocore.query import query_parser, Query
@@ -90,14 +90,17 @@ class CoreClient:
             log.info("Wait for worker to connect.")
             await asyncio.sleep(1)
 
-    async def time_series_snapshot(self, time_series: str, aggregation_query: str, account_id: str) -> int:
+    async def timeseries_snapshot(self, timeseries: str, aggregation_query: str, account_id: str) -> int:
         query = query_parser.parse_query(aggregation_query).combine(
             Query.by(P("/ancestors.account.reported.id").eq(account_id))
         )
-        async for single in self.client.cli_execute(f"timeseries snapshot --name {time_series} {query}"):
+        async for single in self.client.cli_execute(f"timeseries snapshot --name {timeseries} {query}"):
             try:
                 first, rest = single.split(" ", maxsplit=1)
                 return int(first)
             except Exception:
                 log.error(f"Failed to parse timeseries snapshot result: {single}")
         return 0
+
+    async def timeseries_downsample(self) -> List[JsonElement]:
+        return [s async for s in self.client.cli_execute("timeseries downsample")]

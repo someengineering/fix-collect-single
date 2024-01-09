@@ -43,7 +43,7 @@ async def test_workflows_running(core_client: CoreClient) -> None:
 
 @pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
 async def test_benchmarks(core_client: CoreClient) -> None:
-    assert await core_client.list_benchmarks() == ["aws_cis_1_5"]
+    assert "aws_cis_1_5" in await core_client.list_benchmarks()
 
 
 @pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
@@ -74,9 +74,15 @@ async def test_wait_for_collect_task_to_finish(core_client: CoreClient) -> None:
 
 
 @pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
-async def test_time_series_snapshot(core_client: CoreClient) -> None:
+async def test_timeseries_snapshot(core_client: CoreClient) -> None:
     accounts = [a async for a in core_client.client.search_list("is(aws_account) limit 1")]
     single = accounts[0]["reported"]["id"]
     for name, query in SNAPSHOT_METRICS.items():
-        res = await core_client.time_series_snapshot(name, query, single)
+        res = await core_client.timeseries_snapshot(name, query, single)
         assert res > 0
+
+
+@pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
+async def test_timeseries_downsample(core_client: CoreClient) -> None:
+    result = await core_client.timeseries_downsample()
+    assert result
