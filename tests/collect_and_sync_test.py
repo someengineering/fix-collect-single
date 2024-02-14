@@ -18,6 +18,7 @@ import json
 import pytest
 from resotoclient.async_client import ResotoClient
 from redis.asyncio import Redis
+from resotocore.query import query_parser
 
 from collect_single.collect_and_sync import CollectAndSync
 
@@ -53,5 +54,9 @@ async def test_collect_and_sync(redis: Redis, core_client: ResotoClient) -> None
     await cs.send_result_events(True)
 
 
-def test_true() -> None:
-    assert True
+def test_load_metrics() -> None:
+    metrics = CollectAndSync.load_metrics()
+    assert len(metrics) == 11
+    for name, query in metrics.items():
+        # make sure the query parser does not explode
+        query_parser.parse_query(query)
