@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from collect_single.collect_and_sync import SNAPSHOT_METRICS
+from collect_single.collect_and_sync import CollectAndSync
 from collect_single.core_client import CoreClient
 
 
@@ -77,7 +77,7 @@ async def test_wait_for_collect_task_to_finish(core_client: CoreClient) -> None:
 async def test_timeseries_snapshot(core_client: CoreClient) -> None:
     accounts = [a async for a in core_client.client.search_list("is(aws_account) limit 1")]
     single = accounts[0]["reported"]["id"]
-    for name, query in SNAPSHOT_METRICS.items():
+    for name, query in CollectAndSync.load_metrics().items():
         res = await core_client.timeseries_snapshot(name, query, single)
         assert res > 0
 
