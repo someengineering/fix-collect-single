@@ -1,0 +1,113 @@
+resources:
+  description: Number of all resources by kind, account and cloud
+  search: |
+    aggregate(
+      /reported.kind as kind, 
+      /ancestors.account.reported.id as account_id, 
+      /ancestors.cloud.reported.id as cloud_id: sum(1) as count
+    ): all
+
+infected_resources:
+  description: Number of infected resources by severity, account and cloud
+  search: |
+    aggregate(
+      /security.severity as severity, 
+      /ancestors.account.reported.id as account_id, 
+      /ancestors.cloud.reported.id as cloud_id: sum(1) as count
+    ): /security.has_issues==true
+
+cores_total:
+  description: Number of CPU cores of all running instances by type, account and cloud
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account,
+      /ancestors.region.reported.name as region, instance_type as type: sum(instance_cores) as cores_total
+    ): is(instance) and instance_status == running
+
+memory_bytes:
+  description: Amount of RAM in bytes of all running instances by type, account and cloud
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      instance_type as type: sum(instance_memory * 1024 * 1024 * 1024) as memory_bytes
+    ): is(instance) and instance_status == running
+
+volume_bytes:
+  description: Size of Volumes in bytes by cloud, account, region, type and status
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      volume_type as type, 
+      volume_status as status: sum(volume_size * 1024 * 1024 * 1024) as volume_bytes
+    ): is(volume)
+
+databases_bytes:
+  description: Size of Database instances in bytes by cloud, account, region and type
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      db_type as type, 
+      instance_type as instance_type: sum(volume_size * 1024 * 1024 * 1024) as databases_bytes
+    ): is(database)
+
+instances_hourly_cost_estimate:
+  description: Hourly instance cost estimate by cloud, account, region and type
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      instance_type as type: sum(/ancestors.instance_type.reported.ondemand_cost) as instances_hourly_cost_estimate
+    ): is(instance) and instance_status == running
+
+volumes_monthly_cost_estimate:
+  description: Monthly volume cost estimate by cloud, account, region, type and status
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      volume_type as type, 
+      volume_status as status: sum(/ancestors.volume_type.reported.ondemand_cost) as volumes_monthly_cost_estimate
+    ): is(volume)
+
+databases_total:
+  description: Number of Databases by cloud, account, region and database type and instance_type
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      db_type as type, 
+      instance_type as instance_type: sum(1) as databases_total
+    ): is(database)
+
+volumes_total:
+  description: Number of Volumes by cloud, account, region, type and status
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      volume_type as type, 
+      volume_status as status: sum(1) as volumes_total
+    ): is(volume)
+
+instances_total:
+  description: Number of Instances by cloud, account, region, type and status
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      /ancestors.region.reported.name as region, 
+      instance_type as type,
+      instance_status as status: sum(1) as instances_total
+    ): is(instance)
+

@@ -16,8 +16,10 @@
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import List, Optional, Any, Tuple, Dict
 
+import yaml
 from fixcloudutils.redis.event_stream import RedisStreamPublisher, Json
 from fixcloudutils.redis.pub_sub import RedisPubSubPublisher
 from fixcloudutils.service import Service
@@ -29,17 +31,6 @@ from collect_single.core_client import CoreClient
 from collect_single.process import ProcessWrapper
 
 log = logging.getLogger("resoto.coordinator")
-
-SNAPSHOT_METRICS = {
-    # count the number of infected resources by severity, cloud and account
-    "infected_resources": "aggregate(/security.severity as severity, "
-    "/ancestors.account.reported.id as account_id, "
-    "/ancestors.cloud.reported.id as cloud_id: sum(1) as count): /security.has_issues==true",
-    # count the number of resources by kind, cloud and account
-    "resources": "aggregate(/reported.kind as kind, "
-    "/ancestors.account.reported.id as account_id,"
-    "/ancestors.cloud.reported.id as cloud_id: sum(1) as count): all",
-}
 
 
 class CollectAndSync(Service):
@@ -70,14 +61,22 @@ class CollectAndSync(Service):
         self.collect_done_publisher = RedisStreamPublisher(redis, "collect-events", publisher)
         self.started_at = utc()
         self.worker_connected = asyncio.Event()
+        self.metrics: Dict[str, str] = {}
 
     async def start(self) -> Any:
         await self.progress_update_publisher.start()
         await self.collect_done_publisher.start()
+        self.metrics = self.load_metrics()
 
     async def stop(self) -> None:
         await self.progress_update_publisher.stop()
         await self.collect_done_publisher.stop()
+
+    @staticmethod
+    def load_metrics() -> Dict[str, str]:
+        with open(Path(__file__).parent / "metrics.yaml", "r") as f:
+            yml = yaml.safe_load(f)
+            return {k: v["search"] for k, v in yml.items() if "search" in v}
 
     async def listen_to_events_until_collect_done(self) -> bool:
         async for event in self.core_client.client.events():
@@ -129,7 +128,7 @@ class CollectAndSync(Service):
             if benchmarks:
                 await self.core_client.create_benchmark_reports(account_id, benchmarks, self.task_id)
             # create metrics
-            for name, query in SNAPSHOT_METRICS.items():
+            for name, query in self.metrics.items():
                 res = await self.core_client.timeseries_snapshot(name, query, account_id)
                 log.info(f"Created timeseries snapshot: {name} created {res} entries")
                 ds = await self.core_client.timeseries_downsample()
