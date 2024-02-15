@@ -130,9 +130,11 @@ class CollectAndSync(Service):
             # create metrics
             for name, query in self.metrics.items():
                 res = await self.core_client.timeseries_snapshot(name, query, account_id)
-                log.info(f"Created timeseries snapshot: {name} created {res} entries")
-                ds = await self.core_client.timeseries_downsample()
-                log.info(f"Sampled down all timeseries. Result: {ds}")
+                if res:
+                    log.info(f"Created timeseries snapshot: {name} created {res} entries")
+            # downsample all timeseries
+            ds = await self.core_client.timeseries_downsample()
+            log.info(f"Sampled down all timeseries. Result: {ds}")
         else:
             raise ValueError("No account info found. Give up!")
 
