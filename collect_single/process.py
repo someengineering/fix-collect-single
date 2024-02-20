@@ -61,13 +61,19 @@ class ProcessWrapper(Service):
         )
 
     async def stop(self) -> None:
-        if self.reader:
-            self.reader.cancel()
-            with suppress(asyncio.CancelledError):
-                await self.reader
-        if self.process:
-            self.process.terminate()
-            await asyncio.sleep(1)
-            if self.process.returncode is not None:
-                with suppress(Exception):
-                    kill_children(SIGKILL, process_pid=self.process.pid)
+        try:
+            logging.disable(logging.CRITICAL)  # ignore log messages during shutdown
+            if self.reader:
+                self.reader.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self.reader
+            if self.process:
+                self.process.terminate()
+                await asyncio.sleep(1)
+                if self.process.returncode is not None:
+                    with suppress(Exception):
+                        kill_children(SIGKILL, process_pid=self.process.pid)
+        finally:
+            logging.disable(logging.NOTSET)
+            self.process = None
+            self.reader = None
