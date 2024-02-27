@@ -6,17 +6,17 @@ import uuid
 from typing import Any, Optional, Dict, List
 
 from fixcloudutils.types import Json, JsonElement
-from resotoclient import Subscriber
-from resotoclient.async_client import ResotoClient
-from resotocore.query import query_parser, Query
-from resotocore.query.model import P
+from fixclient import Subscriber
+from fixclient.async_client import FixClient
+from fixcore.query import query_parser, Query
+from fixcore.query.model import P
 
-log = logging.getLogger("resoto.coordinator")
+log = logging.getLogger("fix.coordinator")
 
 
 class CoreClient:
     def __init__(self, url: str) -> None:
-        self.client = ResotoClient(url)
+        self.client = FixClient(url)
 
     async def __aenter__(self) -> None:
         await self.client.start()

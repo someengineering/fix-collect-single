@@ -16,16 +16,16 @@
 import json
 
 import pytest
-from resotoclient.async_client import ResotoClient
+from fixclient.async_client import FixClient
 from redis.asyncio import Redis
-from resotocore.query import query_parser
+from fixcore.query import query_parser
 
 from collect_single.collect_and_sync import CollectAndSync
 
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_client(core_client: ResotoClient) -> None:
+async def test_client(core_client: FixClient) -> None:
     benchmark_results = {}
     benchmarks = ["aws_test"]
     for benchmark in benchmarks:
@@ -41,7 +41,7 @@ async def test_client(core_client: ResotoClient) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_collect_and_sync(redis: Redis, core_client: ResotoClient) -> None:
+async def test_collect_and_sync(redis: Redis, core_client: FixClient) -> None:
     cs = CollectAndSync(
         redis=redis,
         tenant_id="tenant_id",

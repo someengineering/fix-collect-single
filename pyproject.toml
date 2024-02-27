@@ -10,10 +10,11 @@ license = { file = "LICENSE" }
 
 
 dependencies = [
-    "resotolib",
-    "resotocore",
-    "resotoworker",
-    "fixcloudutils[arango, redis] >= 1.11.0"
+    "fixinventorylib",
+    "fixinventorycore",
+    "fixinventoryworker",
+    "fixcloudutils[arango, redis] >= 1.11.0",
+    "urllib3 <= 2" # boto3 requires urllib3 < 2.0.0
 ]
 
 [project.optional-dependencies]
@@ -31,6 +32,9 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
     "tox",
+    "types_PyYAML",
+    "types-requests",
+    "types-setuptools"
 ]
 
 

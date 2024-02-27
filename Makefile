@@ -33,8 +33,8 @@ clean-env: ## remove environment
 venv:
 	python3 -m venv venv --prompt "collect_single"
 	. ./venv/bin/activate && python3 -m pip install --upgrade pip
-	. ./venv/bin/activate && pip install -r ../resoto/requirements-test.txt
-	. ./venv/bin/activate && pip install ../resoto/resotolib ../resoto/resotocore ../resoto/resotoworker ../resoto/plugins/k8s ../resoto/plugins/aws
+	. ./venv/bin/activate && pip install -r ../fixinventory/requirements.txt
+	. ./venv/bin/activate && pip install ../fixinventory/fixlib ../fixinventory/fixcore ../fixinventory/fixworker ../fixinventory/plugins/k8s ../fixinventory/plugins/aws
 	. ./venv/bin/activate && pip install -e ".[test]"
 
 test:
@@ -43,6 +43,6 @@ test:
 lint: ## static code analysis
 	black --line-length 120 --check collect_single tests
 	flake8 collect_single
-	mypy --python-version 3.9 --strict --install-types --non-interactive collect_single tests
+	mypy --python-version 3.9 --strict collect_single tests
 
 setup: clean clean-env venv

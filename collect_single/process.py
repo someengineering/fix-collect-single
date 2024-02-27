@@ -25,9 +25,9 @@ from typing import List, Optional, Any, Dict
 
 from fixcloudutils.service import Service
 from fixcloudutils.logging.prometheus_counter import LogRecordCounter
-from resotolib.proc import kill_children
+from fixlib.proc import kill_children
 
-log = logging.getLogger("resoto.coordinator")
+log = logging.getLogger("fix.coordinator")
 
 
 class ProcessWrapper(Service):
