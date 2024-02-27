@@ -7,7 +7,7 @@ from typing import Any, Optional, Dict, List
 
 from fixcloudutils.types import Json, JsonElement
 from fixclient import Subscriber
-from fixclient.async_client import FixClient
+from fixclient.async_client import FixInventoryClient
 from fixcore.query import query_parser, Query
 from fixcore.query.model import P
 
@@ -16,7 +16,7 @@ log = logging.getLogger("fix.coordinator")
 
 class CoreClient:
     def __init__(self, url: str) -> None:
-        self.client = FixClient(url)
+        self.client = FixInventoryClient(url)
 
     async def __aenter__(self) -> None:
         await self.client.start()

@@ -16,7 +16,7 @@
 import json
 
 import pytest
-from fixclient.async_client import FixClient
+from fixclient.async_client import FixInventoryClient
 from redis.asyncio import Redis
 from fixcore.query import query_parser
 
@@ -25,7 +25,7 @@ from collect_single.collect_and_sync import CollectAndSync
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_client(core_client: FixClient) -> None:
+async def test_client(core_client: FixInventoryClient) -> None:
     benchmark_results = {}
     benchmarks = ["aws_test"]
     for benchmark in benchmarks:
@@ -41,7 +41,7 @@ async def test_client(core_client: FixClient) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_collect_and_sync(redis: Redis, core_client: FixClient) -> None:
+async def test_collect_and_sync(redis: Redis, core_client: FixInventoryClient) -> None:
     cs = CollectAndSync(
         redis=redis,
         tenant_id="tenant_id",
