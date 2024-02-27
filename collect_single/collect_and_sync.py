@@ -30,7 +30,7 @@ import prometheus_client
 from collect_single.core_client import CoreClient
 from collect_single.process import ProcessWrapper
 
-log = logging.getLogger("resoto.coordinator")
+log = logging.getLogger("fix.coordinator")
 
 
 class CollectAndSync(Service):
@@ -50,8 +50,8 @@ class CollectAndSync(Service):
         self.tenant_id = tenant_id
         self.account_id = account_id
         self.job_id = job_id
-        self.core_args = ["resotocore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
-        self.worker_args = ["resotoworker"] + worker_args
+        self.core_args = ["fixcore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
+        self.worker_args = ["fixworker"] + worker_args
         self.logging_context = logging_context
         self.core_client = CoreClient(core_url)
         self.task_id: Optional[str] = None
@@ -96,7 +96,7 @@ class CollectAndSync(Service):
             elif msg_type == "task_end" and self.task_id and data.get("task_id", "") == self.task_id:
                 log.info("Received Task End event. Exit.")
                 return True
-            elif msg_type == "message-listener-connected" and data.get("subscriber_id") == "resoto.worker-collector":
+            elif msg_type == "message-listener-connected" and data.get("subscriber_id") == "fix.worker-collector":
                 log.info("Received worker connected event. Mark.")
                 self.worker_connected.set()
             else:

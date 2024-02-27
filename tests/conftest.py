@@ -20,7 +20,7 @@ from pytest import fixture
 from redis.asyncio import Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
-from resotoclient.async_client import ResotoClient
+from fixclient.async_client import FixInventoryClient
 
 
 @fixture
@@ -30,8 +30,8 @@ def redis() -> Redis:
 
 
 @fixture
-async def core_client() -> AsyncIterator[ResotoClient]:
-    client = ResotoClient("http://localhost:8980")
+async def core_client() -> AsyncIterator[FixInventoryClient]:
+    client = FixInventoryClient("http://localhost:8980")
     flag = True
     while flag:
         print("Trying to connect to core...")

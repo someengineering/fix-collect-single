@@ -30,7 +30,7 @@ from redis.asyncio import Redis
 
 from collect_single.collect_and_sync import CollectAndSync
 
-log = logging.getLogger("resoto.coordinator")
+log = logging.getLogger("fix.coordinator")
 
 
 def kv_pairs(s: str) -> Tuple[str, str]:
