@@ -1,4 +1,4 @@
 #!/bin/bash
-. /usr/local/etc/resoto/defaults
-. /usr/local/resoto-venv-python3/bin/activate
+. /usr/local/etc/fixinventory/defaults
+. /usr/local/fix-venv-python3/bin/activate
 exec collect_single "$@"

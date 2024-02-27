@@ -1,9 +1,9 @@
 ARG IMAGE_TAG=edge
-FROM ghcr.io/someengineering/resotobase:${IMAGE_TAG}
+FROM ghcr.io/someengineering/fixinventorybase:${IMAGE_TAG}
 
 # Install this project into the existing venv
 ADD . /single_coordinator
-RUN . /usr/local/resoto-venv-python3/bin/activate && pip install /single_coordinator && rm -rf /single_coordinator
+RUN . /usr/local/fix-venv-python3/bin/activate && pip install /single_coordinator && rm -rf /single_coordinator
 
 # Add shim and create symlink
 COPY collect_single_shim /usr/local/bin/collect_single_shim
