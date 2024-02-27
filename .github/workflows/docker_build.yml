@@ -43,9 +43,9 @@ jobs:
       - name: Generate full hash
         id: full_hash
         run: |
-          RESOTO_SHORT_SHA=$(curl -s -H "Authorization: token ${{ secrets.SOME_CI_PAT }}" https://api.github.com/repos/someengineering/resoto/git/ref/heads/main | jq -r '.object.sha[:7]')
-          echo "Resulting combined hash is ${RESOTO_SHORT_SHA}_${GITHUB_SHA::7}"
-          echo "full_hash=${RESOTO_SHORT_SHA}_${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          FIXINVENTORY_SHORT_SHA=$(curl -s -H "Authorization: token ${{ secrets.SOME_CI_PAT }}" https://api.github.com/repos/someengineering/fixinventory/git/ref/heads/main | jq -r '.object.sha[:7]')
+          echo "Resulting combined hash is ${FIXINVENTORY_SHORT_SHA}_${GITHUB_SHA::7}"
+          echo "full_hash=${FIXINVENTORY_SHORT_SHA}_${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Docker metadata
         id: metadata
