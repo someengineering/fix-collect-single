@@ -174,7 +174,7 @@ class CollectAndSync(Service):
             await self.core_client.delete_graph("resoto")
             log.info("Delete old resoto configs.")
             try:
-                async for cfg in await self.core_client.client.configs():
+                async for cfg in self.core_client.client.configs():
                     if cfg.startswith("resoto"):
                         log.info(f"Delete config: {cfg}")
                         await self.core_client.client.delete_config(cfg)
