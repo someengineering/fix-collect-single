@@ -11,10 +11,9 @@ license = { file = "LICENSE" }
 
 dependencies = [
     "fixinventoryclient>=2",
-    # TODO: remove the version pinning once fixinventory 4.0.0 is released
-    "fixinventorylib==4.0.0a2",
-    "fixinventorycore==4.0.0a2",
-    "fixinventoryworker==4.0.0a2",
+    "fixinventorylib",
+    "fixinventorycore",
+    "fixinventoryworker",
     "fixcloudutils[arango, redis] >= 1.11.0",
     "urllib3 <= 2" # boto3 requires urllib3 < 2.0.0
 ]
