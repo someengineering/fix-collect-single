@@ -86,3 +86,11 @@ async def test_timeseries_snapshot(core_client: CoreClient) -> None:
 async def test_timeseries_downsample(core_client: CoreClient) -> None:
     result = await core_client.timeseries_downsample()
     assert result
+
+
+@pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
+async def test_list_graphs(core_client: CoreClient) -> None:
+    result = await core_client.graphs()
+    assert isinstance(result, set)
+    for i in result:
+        assert isinstance(i, str)
