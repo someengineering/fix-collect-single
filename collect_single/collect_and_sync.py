@@ -200,14 +200,14 @@ class CollectAndSync(Service):
                 log.info("Core started.")
                 async with await asyncio.wait_for(self.core_client.wait_connected(), timeout=60):
                     log.info("Core client connected")
+                    # migrate resoto graph
+                    await self.migrate_resoto_graph()
                     # wait up to 5 minutes for all running workflows to finish
                     await asyncio.wait_for(self.core_client.wait_for_collect_tasks_to_finish(), timeout=300)
                     log.info("All collect workflows finished")
                     async with ProcessWrapper(self.worker_args, self.logging_context):
                         log.info("Worker started")
                         try:
-                            # migrate resoto graph
-                            await self.migrate_resoto_graph()
                             # wait for worker to be connected
                             event_listener = asyncio.create_task(self.listen_to_events_until_collect_done())
                             # wait for worker to be connected
