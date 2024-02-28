@@ -164,6 +164,23 @@ class CollectAndSync(Service):
             )
             log.info("Metrics pushed to gateway")
 
+    async def migrate_resoto_graph(self) -> None:
+        # Migrate the resoto graph
+        graphs = await self.core_client.graphs()
+        if "resoto" in graphs:
+            log.info("Found resoto graph. Copy to fix graph.")
+            await self.core_client.copy_graph("resoto", "fix", force=True)
+            log.info("Resoto graph copied to fix graph. Delete resoto graph.")
+            await self.core_client.delete_graph("resoto")
+            log.info("Delete old resoto configs.")
+            try:
+                async for cfg in await self.core_client.client.configs():
+                    if cfg.startswith("resoto"):
+                        log.info(f"Delete config: {cfg}")
+                        await self.core_client.client.delete_config(cfg)
+            except Exception as ex:
+                log.info(f"Failed to delete resoto configs: {ex}")
+
     async def sync(self, send_on_failed: bool) -> bool:
         result_send = False
         try:
@@ -177,6 +194,8 @@ class CollectAndSync(Service):
                     async with ProcessWrapper(self.worker_args, self.logging_context):
                         log.info("Worker started")
                         try:
+                            # migrate resoto graph
+                            await self.migrate_resoto_graph()
                             # wait for worker to be connected
                             event_listener = asyncio.create_task(self.listen_to_events_until_collect_done())
                             # wait for worker to be connected

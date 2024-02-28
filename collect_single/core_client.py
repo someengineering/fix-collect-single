@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, Set
 
 from fixcloudutils.types import Json, JsonElement
 from fixclient import Subscriber
@@ -104,3 +104,17 @@ class CoreClient:
 
     async def timeseries_downsample(self) -> List[JsonElement]:
         return [s async for s in self.client.cli_execute("timeseries downsample")]
+
+    async def graphs(self) -> Set[str]:
+        return {g async for g in self.client.cli_execute("graph list")}
+
+    async def copy_graph(self, from_graph: str, to_graph: str, *, force: bool = False) -> None:
+        cmd = f"graph copy {from_graph} {to_graph}"
+        if force:
+            cmd += " --force"
+        async for _ in self.client.cli_execute(cmd):
+            pass
+
+    async def delete_graph(self, graph: str) -> None:
+        async for _ in self.client.cli_execute(f"graph delete {graph}"):
+            pass
