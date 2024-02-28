@@ -16,11 +16,13 @@
 
 import asyncio
 import logging
+from datetime import timedelta
 from pathlib import Path
 from typing import List, Optional, Any, Tuple, Dict
 
 import yaml
 from fixcloudutils.redis.event_stream import RedisStreamPublisher, Json
+from fixcloudutils.redis.lock import Lock
 from fixcloudutils.redis.pub_sub import RedisPubSubPublisher
 from fixcloudutils.service import Service
 from fixcloudutils.util import utc, utc_str
@@ -47,6 +49,7 @@ class CollectAndSync(Service):
         push_gateway_url: Optional[str] = None,
         core_url: str = "http://localhost:8980",
     ) -> None:
+        self.redis = redis
         self.tenant_id = tenant_id
         self.account_id = account_id
         self.job_id = job_id
@@ -165,9 +168,11 @@ class CollectAndSync(Service):
             log.info("Metrics pushed to gateway")
 
     async def migrate_resoto_graph(self) -> None:
-        # Migrate the resoto graph
-        graphs = await self.core_client.graphs()
-        if "resoto" in graphs:
+        async def copy_graph() -> None:
+            # double check with lock
+            graphs = await self.core_client.graphs()
+            if "resoto" not in graphs:
+                return
             log.info("Found resoto graph. Copy to fix graph.")
             await self.core_client.copy_graph("resoto", "fix", force=True)
             log.info("Resoto graph copied to fix graph. Delete resoto graph.")
@@ -180,6 +185,13 @@ class CollectAndSync(Service):
                         await self.core_client.client.delete_config(cfg)
             except Exception as ex:
                 log.info(f"Failed to delete resoto configs: {ex}")
+
+        # Migrate the resoto graph
+        graphs = await self.core_client.graphs()
+        if "resoto" in graphs:
+            # pick a global lock
+            lock = Lock(self.redis, "collect_single_" + self.tenant_id, timedelta(minutes=15).total_seconds())
+            await lock.with_lock(copy_graph())
 
     async def sync(self, send_on_failed: bool) -> bool:
         result_send = False
