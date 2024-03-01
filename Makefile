@@ -35,8 +35,7 @@ venv:
 	. ./venv/bin/activate && python3 -m pip install --upgrade pip
 	. ./venv/bin/activate && pip install -r ../fixinventory/requirements.txt
 	. ./venv/bin/activate && pip install ../fixinventory/fixlib ../fixinventory/fixcore ../fixinventory/fixworker ../fixinventory/plugins/k8s ../fixinventory/plugins/aws
-	# TODO: remove the --pre when there is a final release
-	. ./venv/bin/activate && pip install --pre -e ".[test]"
+	. ./venv/bin/activate && pip install -e ".[test]"
 
 test:
 	pytest
