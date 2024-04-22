@@ -17,7 +17,6 @@ import json
 
 import pytest
 from fixclient.async_client import FixInventoryClient
-from redis.asyncio import Redis
 from fixcore.query import query_parser
 
 from collect_single.collect_and_sync import CollectAndSync
@@ -41,17 +40,8 @@ async def test_client(core_client: FixInventoryClient) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_collect_and_sync(redis: Redis, core_client: FixInventoryClient) -> None:
-    cs = CollectAndSync(
-        redis=redis,
-        tenant_id="tenant_id",
-        account_id="account_id",
-        job_id="job_id",
-        core_args=[],
-        worker_args=[],
-        logging_context={},
-    )
-    await cs.send_result_events(True)
+async def test_collect_and_sync(collect_and_sync: CollectAndSync) -> None:
+    await collect_and_sync.send_result_events(True)
 
 
 def test_load_metrics() -> None:

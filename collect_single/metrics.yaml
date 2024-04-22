@@ -111,3 +111,8 @@ instances_total:
       instance_status as status: sum(1) as instances_total
     ): is(instance)
 
+account_score:
+  description: Account score by account and cloud
+  search: |
+    aggregate( id as account_id, /ancestors.cloud.reported.id as cloud_id: avg(/metadata.score) as score ): 
+    is(account) and /metadata.score!=null
