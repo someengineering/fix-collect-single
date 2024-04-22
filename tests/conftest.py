@@ -22,6 +22,8 @@ from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
 from fixclient.async_client import FixInventoryClient
 
+from collect_single.collect_and_sync import CollectAndSync
+
 
 @fixture
 def redis() -> Redis:
@@ -41,3 +43,16 @@ async def core_client() -> AsyncIterator[FixInventoryClient]:
             yield client
         except Exception:
             await asyncio.sleep(1)
+
+
+@fixture
+async def collect_and_sync(redis: Redis) -> CollectAndSync:
+    return CollectAndSync(
+        redis=redis,
+        tenant_id="tenant_id",
+        account_id="account_id",
+        job_id="job_id",
+        core_args=[],
+        worker_args=[],
+        logging_context={},
+    )

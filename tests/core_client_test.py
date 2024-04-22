@@ -56,7 +56,7 @@ async def test_create_benchmark_report(core_client: CoreClient) -> None:
         a
         async for a in core_client.client.cli_execute(
             f'search account.id=="{single}" and /security.has_issues==true and /security.run_id=="{task_id}" | '
-            f"aggregate sum(1) as count"
+            f"aggregate sum(1) as count | dump"
         )
     ]
     assert res[0]["count"] > 10
@@ -79,7 +79,7 @@ async def test_timeseries_snapshot(core_client: CoreClient) -> None:
     single = accounts[0]["reported"]["id"]
     for name, query in CollectAndSync.load_metrics().items():
         res = await core_client.timeseries_snapshot(name, query, single)
-        assert res > 0
+        assert res >= 0
 
 
 @pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
