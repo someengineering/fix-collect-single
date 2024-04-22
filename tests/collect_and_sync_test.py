@@ -46,7 +46,7 @@ async def test_collect_and_sync(collect_and_sync: CollectAndSync) -> None:
 
 def test_load_metrics() -> None:
     metrics = CollectAndSync.load_metrics()
-    assert len(metrics) == 11
+    assert len(metrics) == 12
     for name, query in metrics.items():
         # make sure the query parser does not explode
         query_parser.parse_query(query)
