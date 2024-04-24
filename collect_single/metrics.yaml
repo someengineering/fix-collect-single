@@ -5,7 +5,7 @@ resources:
       /reported.kind as kind, 
       /ancestors.account.reported.id as account_id, 
       /ancestors.cloud.reported.id as cloud_id: sum(1) as count
-    ): all
+    ): not(is(phantom_resource))
 
 infected_resources:
   description: Number of infected resources by severity, account and cloud
