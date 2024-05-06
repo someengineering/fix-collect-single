@@ -39,7 +39,7 @@ class CollectAndSync(Service):
     def __init__(
         self,
         *,
-        redis: Redis,
+        redis: Redis,  # type: ignore
         tenant_id: str,
         account_id: Optional[str],
         job_id: str,
