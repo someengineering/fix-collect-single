@@ -116,3 +116,23 @@ account_score:
   search: |
     aggregate( id as account_id, /ancestors.cloud.reported.id as cloud_id: avg(/metadata.score) as score ): 
     is(account) and /metadata.score!=null
+
+buckets_size_bytes:
+  description: Size of Buckets in bytes by cloud, account, region and type
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      bucket_location as region, 
+      name as name: sum(/usage.bucket_size_bytes.avg) as bucket_size_bytes
+    ): is(bucket)
+
+buckets_objects_total:
+  description: Size of Buckets in bytes by cloud, account, region and type
+  search: |
+    aggregate(
+      /ancestors.cloud.reported.name as cloud, 
+      /ancestors.account.reported.name as account, 
+      bucket_location as region, 
+      name as name: sum(/usage.number_of_objects_count.avg) as buckets_objects_total
+    ): is(bucket)

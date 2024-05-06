@@ -26,8 +26,8 @@ from collect_single.collect_and_sync import CollectAndSync
 
 
 @fixture
-def redis() -> Redis:
-    backoff = ExponentialBackoff()  # type: ignore
+def redis() -> Redis:  # type: ignore
+    backoff = ExponentialBackoff()
     return Redis(host="localhost", port=6379, decode_responses=True, retry=Retry(backoff, 10))
 
 
@@ -46,7 +46,7 @@ async def core_client() -> AsyncIterator[FixInventoryClient]:
 
 
 @fixture
-async def collect_and_sync(redis: Redis) -> CollectAndSync:
+async def collect_and_sync(redis: Redis) -> CollectAndSync:  # type: ignore
     return CollectAndSync(
         redis=redis,
         tenant_id="tenant_id",
