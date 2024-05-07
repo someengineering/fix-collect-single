@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any, Optional, Dict, List, Set
+from typing import Any, Optional, Dict, List, Set, cast
 
 from fixcloudutils.types import Json, JsonElement
 from fixclient import Subscriber
@@ -57,8 +57,15 @@ class CoreClient:
             if info != "No error messages for this run."
         ]
 
-    async def list_benchmarks(self) -> List[str]:
-        return [cfg async for cfg in self.client.cli_execute("report benchmark list")]
+    async def list_benchmarks(self, *, providers: Optional[List[str]] = None) -> List[str]:
+        params = dict(ids_only="true")
+        if providers:
+            params["providers"] = " ".join(providers)
+        response = await self.client._get("/report/benchmarks", params)
+        if response.status_code == 200:
+            return cast(List[str], await response.json())
+        else:
+            raise AttributeError(await response.text())
 
     async def create_benchmark_reports(self, account_id: str, benchmarks: List[str], task_id: Optional[str]) -> None:
         bn = " ".join(benchmarks)

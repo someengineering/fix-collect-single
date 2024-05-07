@@ -41,6 +41,7 @@ class CollectAndSync(Service):
         *,
         redis: Redis,  # type: ignore
         tenant_id: str,
+        cloud: Optional[str],
         account_id: Optional[str],
         job_id: str,
         core_args: List[str],
@@ -51,6 +52,7 @@ class CollectAndSync(Service):
     ) -> None:
         self.redis = redis
         self.tenant_id = tenant_id
+        self.cloud = cloud
         self.account_id = account_id
         self.job_id = job_id
         self.core_args = ["fixcore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
@@ -127,7 +129,7 @@ class CollectAndSync(Service):
         # post process the data, if something has been collected
         if account_info and (account_id := self.account_id):
             # synchronize the security section
-            benchmarks = await self.core_client.list_benchmarks()
+            benchmarks = await self.core_client.list_benchmarks(providers=[self.cloud] if self.cloud else None)
             if benchmarks:
                 await self.core_client.create_benchmark_reports(account_id, benchmarks, self.task_id)
             # create metrics
