@@ -51,6 +51,7 @@ async def startup(
             async with CollectAndSync(
                 redis=redis,
                 tenant_id=args.tenant_id,
+                cloud=args.cloud,
                 account_id=args.account_id,
                 job_id=args.job_id,
                 core_args=core_args,
@@ -97,6 +98,7 @@ def main() -> None:
     parser.add_argument("--job-id", required=True, help="Job Id of the coordinator")
     parser.add_argument("--tenant-id", required=True, help="Id of the tenant")
     parser.add_argument("--account-id", help="Id of the account")
+    parser.add_argument("--cloud", help="Cloud provider.")
     parser.add_argument("--redis-url", default="redis://localhost:6379/0", help="Redis host.")
     parser.add_argument("--redis-password", default=os.environ.get("REDIS_PASSWORD"), help="Redis password")
     parser.add_argument("--push-gateway-url", help="Prometheus push gateway url")

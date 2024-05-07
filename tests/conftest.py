@@ -50,6 +50,7 @@ async def collect_and_sync(redis: Redis) -> CollectAndSync:  # type: ignore
     return CollectAndSync(
         redis=redis,
         tenant_id="tenant_id",
+        cloud="aws",
         account_id="account_id",
         job_id="job_id",
         core_args=[],
