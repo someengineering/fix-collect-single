@@ -77,8 +77,8 @@ class CollectAndSync(Service):
     async def start(self) -> Any:
         await self.progress_update_publisher.start()
         await self.collect_done_publisher.start()
-        await self.core_client.start()
         self.metrics = self.load_metrics()
+        # note: the client is not started (core is not running and no certificate required)
 
     async def stop(self) -> None:
         await self.core_client.stop()
