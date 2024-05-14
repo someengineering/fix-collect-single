@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+from typing import AsyncIterator
 
 import pytest
 
@@ -9,8 +10,9 @@ from collect_single.core_client import CoreClient
 
 
 @pytest.fixture
-async def core_client() -> CoreClient:
-    return CoreClient("http://localhost:8980")
+async def core_client() -> AsyncIterator[CoreClient]:
+    async with CoreClient("http://localhost:8980") as client:
+        yield client
 
 
 @pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
@@ -63,11 +65,6 @@ async def test_create_benchmark_report(core_client: CoreClient) -> None:
 
 
 @pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
-async def test_wait_for_worker_subscribed(core_client: CoreClient) -> None:
-    await asyncio.wait_for(core_client.wait_for_worker_subscribed(), timeout=1)
-
-
-@pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
 async def test_wait_for_collect_task_to_finish(core_client: CoreClient) -> None:
     await core_client.start_workflow("collect")
     await asyncio.wait_for(core_client.wait_for_collect_tasks_to_finish(), timeout=600)
@@ -94,3 +91,13 @@ async def test_list_graphs(core_client: CoreClient) -> None:
     assert isinstance(result, set)
     for i in result:
         assert isinstance(i, str)
+
+
+@pytest.mark.skipif(os.environ.get("CORE_RUNNING") is None, reason="No core running")
+async def test_account_by_id(core_client: CoreClient) -> None:
+    result = await core_client.account_id_by_name()
+    assert isinstance(result, dict)
+    assert len(result) > 0
+    for k, v in result.items():
+        assert isinstance(k, str)
+        assert isinstance(v, str)

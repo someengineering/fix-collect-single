@@ -18,14 +18,20 @@ import asyncio
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import List, Optional, Any, Tuple, Dict
+from typing import List, Optional, Any, Tuple, Dict, cast
 
 import yaml
+from arango.cursor import Cursor
 from fixcloudutils.redis.event_stream import RedisStreamPublisher, Json
 from fixcloudutils.redis.lock import Lock
 from fixcloudutils.redis.pub_sub import RedisPubSubPublisher
 from fixcloudutils.service import Service
 from fixcloudutils.util import utc, utc_str
+from fixcore.core_config import parse_config
+from fixcore.db.async_arangodb import AsyncArangoDB
+from fixcore.db.db_access import DbAccess
+from fixcore.db.timeseriesdb import TimeSeriesDB
+from fixcore.system_start import parse_args as core_parse_args
 from redis.asyncio import Redis
 import prometheus_client
 
@@ -55,8 +61,8 @@ class CollectAndSync(Service):
         self.cloud = cloud
         self.account_id = account_id
         self.job_id = job_id
-        self.core_args = ["fixcore", "--no-scheduling", "--ignore-interrupted-tasks"] + core_args
-        self.worker_args = ["fixworker"] + worker_args
+        self.core_args = ["--no-scheduling", "--ignore-interrupted-tasks"] + core_args
+        self.worker_args = worker_args
         self.logging_context = logging_context
         self.core_client = CoreClient(core_url)
         self.task_id: Optional[str] = None
@@ -71,9 +77,11 @@ class CollectAndSync(Service):
     async def start(self) -> Any:
         await self.progress_update_publisher.start()
         await self.collect_done_publisher.start()
+        await self.core_client.start()
         self.metrics = self.load_metrics()
 
     async def stop(self) -> None:
+        await self.core_client.stop()
         await self.progress_update_publisher.stop()
         await self.collect_done_publisher.stop()
 
@@ -169,45 +177,46 @@ class CollectAndSync(Service):
             )
             log.info("Metrics pushed to gateway")
 
-    async def migrate_resoto_graph(self) -> None:
-        async def copy_graph() -> None:
-            # double check with lock
-            graphs = await self.core_client.graphs()
-            if "resoto" not in graphs:
-                return
-            log.info("Found resoto graph. Copy to fix graph.")
-            await self.core_client.copy_graph("resoto", "fix", force=True)
-            log.info("Resoto graph copied to fix graph. Delete resoto graph.")
-            await self.core_client.delete_graph("resoto")
-            log.info("Delete old resoto configs.")
-            try:
-                async for cfg in self.core_client.client.configs():
-                    if cfg.startswith("resoto"):
-                        log.info(f"Delete config: {cfg}")
-                        await self.core_client.client.delete_config(cfg)
-            except Exception as ex:
-                log.info(f"Failed to delete resoto configs: {ex}")
+    async def migrate_ts_data(self) -> None:
+        ts_with_account = "for doc in ts filter doc.group.account!=null"
+        update = (
+            ts_with_account + " let account_id = NOT_NULL(@accounts[doc.group.account], doc.group.account) "
+            'UPDATE doc WITH { group: MERGE(UNSET(doc.group, "account"), { account_id: account_id }) }  '
+            "IN ts OPTIONS { mergeObjects: false }"
+        )
 
-        # Migrate the resoto graph
-        graphs = await self.core_client.graphs()
-        if "resoto" in graphs:
+        args = core_parse_args(self.core_args)
+        _, _, sdb = DbAccess.connect(args, timedelta(seconds=120), verify=False)
+
+        async def migrate_ts() -> None:
+            log.info("Redis lock taken. Migrate data.")
+            config = parse_config(args, {}, lambda: None)
+            tsdb = TimeSeriesDB(AsyncArangoDB(sdb), "ts", config)
+            name_by_id = await self.core_client.account_id_by_name()
+            async with tsdb._lock():  # also take the tsdb lock, so no one else is allowed to change ts data
+                log.info("TS Lock taken. Migrate TS data to account id")
+                sdb.aql.execute(update, bind_vars={"accounts": name_by_id})
+                log.info("TS data migrated")
+
+        result = cast(Cursor, sdb.aql.execute(ts_with_account + " LIMIT 1 RETURN doc", count=True))
+        if result.count():
             # pick a global lock
             lock = Lock(self.redis, "collect_single_" + self.tenant_id, timedelta(minutes=15).total_seconds())
-            await lock.with_lock(copy_graph())
+            await lock.with_lock(migrate_ts())
 
     async def sync(self, send_on_failed: bool) -> bool:
         result_send = False
         try:
-            async with ProcessWrapper(self.core_args, self.logging_context):
+            async with ProcessWrapper(["fixcore", *self.core_args], self.logging_context):
                 log.info("Core started.")
                 async with await asyncio.wait_for(self.core_client.wait_connected(), timeout=60):
                     log.info("Core client connected")
-                    # migrate resoto graph
-                    await self.migrate_resoto_graph()
+                    # migrate timeseries data to account id
+                    await self.migrate_ts_data()
                     # wait up to 5 minutes for all running workflows to finish
                     await asyncio.wait_for(self.core_client.wait_for_collect_tasks_to_finish(), timeout=300)
                     log.info("All collect workflows finished")
-                    async with ProcessWrapper(self.worker_args, self.logging_context):
+                    async with ProcessWrapper(["fixworker", *self.worker_args], self.logging_context):
                         log.info("Worker started")
                         try:
                             # wait for worker to be connected
