@@ -3,25 +3,27 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any, Optional, Dict, List, Set, cast
+from typing import Optional, Dict, List, Set, cast
 
-from fixcloudutils.types import Json, JsonElement
 from fixclient import Subscriber
 from fixclient.async_client import FixInventoryClient
+from fixcloudutils.service import Service
+from fixcloudutils.types import Json, JsonElement
 from fixcore.query import query_parser, Query
 from fixcore.query.model import P
+from fixlib.json import value_in_path
 
 log = logging.getLogger("fix.coordinator")
 
 
-class CoreClient:
+class CoreClient(Service):
     def __init__(self, url: str) -> None:
         self.client = FixInventoryClient(url)
 
-    async def __aenter__(self) -> None:
+    async def start(self) -> None:
         await self.client.start()
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def stop(self) -> None:
         await self.client.shutdown()
 
     async def wait_connected(self) -> CoreClient:
@@ -125,3 +127,9 @@ class CoreClient:
     async def delete_graph(self, graph: str) -> None:
         async for _ in self.client.cli_execute(f"graph delete {graph}"):
             pass
+
+    async def account_id_by_name(self) -> Dict[Optional[str], Optional[str]]:
+        return {
+            value_in_path(r, "reported.name"): value_in_path(r, "reported.id")
+            async for r in self.client.cli_execute("search is(account) | dump")
+        }

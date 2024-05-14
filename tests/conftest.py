@@ -46,8 +46,8 @@ async def core_client() -> AsyncIterator[FixInventoryClient]:
 
 
 @fixture
-async def collect_and_sync(redis: Redis) -> CollectAndSync:  # type: ignore
-    return CollectAndSync(
+async def collect_and_sync(redis: Redis) -> AsyncIterator[CollectAndSync]:  # type: ignore
+    async with CollectAndSync(
         redis=redis,
         tenant_id="tenant_id",
         cloud="aws",
@@ -56,4 +56,5 @@ async def collect_and_sync(redis: Redis) -> CollectAndSync:  # type: ignore
         core_args=[],
         worker_args=[],
         logging_context={},
-    )
+    ) as collect_and_sync:
+        yield collect_and_sync

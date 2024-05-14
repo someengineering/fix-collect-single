@@ -44,6 +44,12 @@ async def test_collect_and_sync(collect_and_sync: CollectAndSync) -> None:
     await collect_and_sync.send_result_events(True)
 
 
+@pytest.mark.asyncio
+@pytest.mark.skip(reason="Only for manual testing")
+async def test_migrate_ts(collect_and_sync: CollectAndSync) -> None:
+    await collect_and_sync.migrate_ts_data()
+
+
 def test_load_metrics() -> None:
     metrics = CollectAndSync.load_metrics()
     assert len(metrics) >= 14
