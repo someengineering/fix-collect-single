@@ -186,6 +186,7 @@ class CollectAndSync(Service):
         )
 
         args = core_parse_args(self.core_args)
+        # TODO: silent insecure request warning
         _, _, sdb = DbAccess.connect(args, timedelta(seconds=120), verify=False)
 
         async def migrate_ts() -> None:
@@ -211,8 +212,6 @@ class CollectAndSync(Service):
                 log.info("Core started.")
                 async with await asyncio.wait_for(self.core_client.wait_connected(), timeout=60):
                     log.info("Core client connected")
-                    # migrate timeseries data to account id
-                    await self.migrate_ts_data()
                     # wait up to 5 minutes for all running workflows to finish
                     await asyncio.wait_for(self.core_client.wait_for_collect_tasks_to_finish(), timeout=300)
                     log.info("All collect workflows finished")
