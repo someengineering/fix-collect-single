@@ -36,6 +36,7 @@ from redis.asyncio import Redis
 import prometheus_client
 
 from collect_single.core_client import CoreClient
+from collect_single.model import MetricQuery
 from collect_single.process import ProcessWrapper
 
 log = logging.getLogger("fix.coordinator")
@@ -72,7 +73,7 @@ class CollectAndSync(Service):
         self.collect_done_publisher = RedisStreamPublisher(redis, "collect-events", publisher)
         self.started_at = utc()
         self.worker_connected = asyncio.Event()
-        self.metrics: Dict[str, str] = {}
+        self.metrics: List[MetricQuery] = []
 
     async def start(self) -> Any:
         await self.progress_update_publisher.start()
@@ -86,10 +87,10 @@ class CollectAndSync(Service):
         await self.collect_done_publisher.stop()
 
     @staticmethod
-    def load_metrics() -> Dict[str, str]:
+    def load_metrics() -> List[MetricQuery]:
         with open(Path(__file__).parent / "metrics.yaml", "r") as f:
             yml = yaml.safe_load(f)
-            return {k: v["search"] for k, v in yml.items() if "search" in v}
+            return [MetricQuery.from_json(k, v) for k, v in yml.items() if "search" in v]
 
     async def listen_to_events_until_collect_done(self) -> bool:
         async for event in self.core_client.client.events():
@@ -141,10 +142,10 @@ class CollectAndSync(Service):
             if benchmarks:
                 await self.core_client.create_benchmark_reports(account_id, benchmarks, self.task_id)
             # create metrics
-            for name, query in self.metrics.items():
-                res = await self.core_client.timeseries_snapshot(name, query, account_id)
+            for metric in self.metrics:
+                res = await self.core_client.timeseries_snapshot(metric, account_id)
                 if res:
-                    log.info(f"Created timeseries snapshot: {name} created {res} entries")
+                    log.info(f"Created timeseries snapshot: {metric.name} created {res} entries")
             # downsample all timeseries
             ds = await self.core_client.timeseries_downsample()
             log.info(f"Sampled down all timeseries. Result: {ds}")

@@ -121,6 +121,8 @@ account_score:
 
 buckets_size_bytes:
   description: Size of Buckets in bytes by cloud, account, region and type
+  # For aggregation: convert bytes to GB
+  factor: 1000000000
   search: |
     aggregate(
       /ancestors.cloud.reported.name as cloud, 
