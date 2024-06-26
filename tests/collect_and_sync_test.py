@@ -53,6 +53,6 @@ async def test_migrate_ts(collect_and_sync: CollectAndSync) -> None:
 def test_load_metrics() -> None:
     metrics = CollectAndSync.load_metrics()
     assert len(metrics) >= 14
-    for name, query in metrics.items():
+    for query in metrics:
         # make sure the query parser does not explode
-        query_parser.parse_query(query)
+        query_parser.parse_query(query.search)

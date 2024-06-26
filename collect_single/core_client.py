@@ -13,6 +13,8 @@ from fixcore.query import query_parser, Query
 from fixcore.query.model import P
 from fixlib.json import value_in_path
 
+from collect_single.model import MetricQuery
+
 log = logging.getLogger("fix.coordinator")
 
 
@@ -99,11 +101,14 @@ class CoreClient(Service):
             log.info("Wait for worker to connect.")
             await asyncio.sleep(1)
 
-    async def timeseries_snapshot(self, timeseries: str, aggregation_query: str, account_id: str) -> int:
-        query = query_parser.parse_query(aggregation_query).combine(
+    async def timeseries_snapshot(self, metric: MetricQuery, account_id: str) -> int:
+        query = query_parser.parse_query(metric.search).combine(
             Query.by(P("/ancestors.account.reported.id").eq(account_id))
         )
-        async for single in self.client.cli_execute(f"timeseries snapshot --name {timeseries} {query}"):
+        command = f"timeseries snapshot --name {metric.name} "
+        if metric.factor:
+            command += f"--avg-factor {metric.factor} "
+        async for single in self.client.cli_execute(f"{command} {query}"):
             try:
                 first, rest = single.split(" ", maxsplit=1)
                 return int(first)

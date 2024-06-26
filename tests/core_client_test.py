@@ -74,8 +74,8 @@ async def test_wait_for_collect_task_to_finish(core_client: CoreClient) -> None:
 async def test_timeseries_snapshot(core_client: CoreClient) -> None:
     accounts = [a async for a in core_client.client.search_list("is(aws_account) limit 1")]
     single = accounts[0]["reported"]["id"]
-    for name, query in CollectAndSync.load_metrics().items():
-        res = await core_client.timeseries_snapshot(name, query, single)
+    for query in CollectAndSync.load_metrics():
+        res = await core_client.timeseries_snapshot(query, single)
         assert res >= 0
 
 
