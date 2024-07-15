@@ -19,7 +19,7 @@ import pytest
 from fixclient.async_client import FixInventoryClient
 from fixcore.query import query_parser
 
-from collect_single.collect_and_sync import CollectAndSync
+from collect_single.collect_single import CollectSingle
 
 
 @pytest.mark.asyncio
@@ -40,18 +40,18 @@ async def test_client(core_client: FixInventoryClient) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_collect_and_sync(collect_and_sync: CollectAndSync) -> None:
+async def test_collect_and_sync(collect_and_sync: CollectSingle) -> None:
     await collect_and_sync.send_result_events(True)
 
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Only for manual testing")
-async def test_migrate_ts(collect_and_sync: CollectAndSync) -> None:
+async def test_migrate_ts(collect_and_sync: CollectSingle) -> None:
     await collect_and_sync.migrate_ts_data()
 
 
 def test_load_metrics() -> None:
-    metrics = CollectAndSync.load_metrics()
+    metrics = CollectSingle.load_metrics()
     assert len(metrics) >= 14
     for query in metrics:
         # make sure the query parser does not explode

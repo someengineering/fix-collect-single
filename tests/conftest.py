@@ -22,7 +22,7 @@ from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
 from fixclient.async_client import FixInventoryClient
 
-from collect_single.collect_and_sync import CollectAndSync
+from collect_single.collect_single import CollectSingle
 
 
 @fixture
@@ -46,8 +46,8 @@ async def core_client() -> AsyncIterator[FixInventoryClient]:
 
 
 @fixture
-async def collect_and_sync(redis: Redis) -> AsyncIterator[CollectAndSync]:  # type: ignore
-    async with CollectAndSync(
+async def collect_and_sync(redis: Redis) -> AsyncIterator[CollectSingle]:  # type: ignore
+    async with CollectSingle(
         redis=redis,
         tenant_id="tenant_id",
         cloud="aws",

@@ -5,7 +5,7 @@ from typing import AsyncIterator
 
 import pytest
 
-from collect_single.collect_and_sync import CollectAndSync
+from collect_single.collect_single import CollectSingle
 from collect_single.core_client import CoreClient
 
 
@@ -53,7 +53,7 @@ async def test_create_benchmark_report(core_client: CoreClient) -> None:
     accounts = [a async for a in core_client.client.search_list("is(aws_account) limit 1")]
     single = accounts[0]["reported"]["id"]
     task_id = str(uuid.uuid4())
-    await core_client.create_benchmark_reports(single, ["aws_cis_1_5"], task_id)
+    await core_client.create_benchmark_reports([single], ["aws_cis_1_5"], task_id)
     res = [
         a
         async for a in core_client.client.cli_execute(
@@ -74,7 +74,7 @@ async def test_wait_for_collect_task_to_finish(core_client: CoreClient) -> None:
 async def test_timeseries_snapshot(core_client: CoreClient) -> None:
     accounts = [a async for a in core_client.client.search_list("is(aws_account) limit 1")]
     single = accounts[0]["reported"]["id"]
-    for query in CollectAndSync.load_metrics():
+    for query in CollectSingle.load_metrics():
         res = await core_client.timeseries_snapshot(query, single)
         assert res >= 0
 

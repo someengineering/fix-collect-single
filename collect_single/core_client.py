@@ -71,11 +71,14 @@ class CoreClient(Service):
         else:
             raise AttributeError(await response.text())
 
-    async def create_benchmark_reports(self, account_id: str, benchmarks: List[str], task_id: Optional[str]) -> None:
+    async def create_benchmark_reports(
+        self, account_ids: List[str], benchmarks: List[str], run_id: Optional[str]
+    ) -> None:
         bn = " ".join(benchmarks)
-        run_id = task_id or str(uuid.uuid4())
-        command = f"report benchmark run {bn} --accounts {account_id} --sync-security-section --run-id {run_id} | count"
-        log.info(f"Create reports for following benchmarks: {bn} for accounts: {account_id}. Command: {command}")
+        an = " ".join(account_ids)
+        rid = run_id or str(uuid.uuid4())
+        command = f"report benchmark run {bn} --accounts {an} --sync-security-section --run-id {rid} | count"
+        log.info(f"Create reports for following benchmarks: {bn} for accounts: {an}. Command: {command}")
         async for _ in self.client.cli_execute(command, headers={"Accept": "application/json"}):
             pass  # ignore the result
 
@@ -138,3 +141,10 @@ class CoreClient(Service):
             value_in_path(r, "reported.name"): value_in_path(r, "reported.id")
             async for r in self.client.cli_execute("search is(account) | dump")
         }
+
+    async def merge_deferred_edges(self, task_ids: List[str], *, graph: str = "fix") -> None:
+        response = await self.client._post(f"/graph/{graph}/merge/deferred_edges", json=task_ids)
+        if response.status_code == 200:
+            return await response.json()  # type: ignore
+        else:
+            raise AttributeError(await response.text())
