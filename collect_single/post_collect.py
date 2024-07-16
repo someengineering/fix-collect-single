@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -9,6 +10,7 @@ from itertools import takewhile
 from typing import List, Dict
 from typing import Optional
 
+import cattrs
 from attr import define
 from fixcloudutils.logging import setup_logger
 from fixcloudutils.util import utc, utc_str
@@ -63,6 +65,8 @@ class PostCollect(Job):
     async def sync(self) -> None:
         try:
             if self.accounts_collected:  # Don't do anything if no accounts were collected
+                aids = ", ".join([ac.account_id for ac in self.accounts_collected])
+                log.info(f"Sync tenant {self.tenant_id}: with {len(self.accounts_collected)} accounts: {aids}.")
                 async with ProcessWrapper(["fixcore", *self.core_args], self.logging_context):
                     log.info("Core started.")
                     await asyncio.wait_for(self.core_client.wait_connected(), timeout=60)
@@ -103,8 +107,8 @@ class AccountCollected:
     task_id: str
 
     @staticmethod
-    def from_string(s: str) -> "AccountCollected":
-        return AccountCollected(*s.split(":"))
+    def from_string(json_str: str) -> List[AccountCollected]:
+        return cattrs.structure(json.loads(json_str), List[AccountCollected])
 
 
 def main() -> None:
@@ -114,7 +118,9 @@ def main() -> None:
     parser = ArgumentParser()
     parser.add_argument("--job-id", required=True, help="Job Id of the coordinator")
     parser.add_argument("--tenant-id", required=True, help="Id of the tenant")
-    parser.add_argument("--accounts-collected", required=True, nargs="+", type=AccountCollected.from_string)
+    parser.add_argument(
+        "--accounts-collected", default=os.environ.get("ACCOUNTS_COLLECTED"), type=AccountCollected.from_string
+    )
     parser.add_argument("--redis-url", default="redis://localhost:6379/0", help="Redis host.")
     parser.add_argument("--redis-password", default=os.environ.get("REDIS_PASSWORD"), help="Redis password")
     parser.add_argument("--push-gateway-url", help="Prometheus push gateway url")
