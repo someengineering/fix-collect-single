@@ -7,6 +7,6 @@ RUN . /usr/local/fix-venv-python3/bin/activate && pip install /single_coordinato
 
 # Add shim and create symlink
 COPY dispatch_executable_shim.sh /usr/local/bin/dispatch_executable_shim
-RUN chmod 755 /usr/local/bin/collect_single_shim && ln -s /usr/local/bin/collect_single_shim /usr/bin/collect_single
+RUN chmod 755 /usr/local/bin/dispatch_executable_shim && ln -s /usr/local/bin/dispatch_executable_shim /usr/bin/dispatch_executable
 
-ENTRYPOINT ["/bin/dumb-init", "--", "/usr/local/sbin/bootstrap", "/usr/bin/dispatch_executable_shim"]
+ENTRYPOINT ["/bin/dumb-init", "--", "/usr/local/sbin/bootstrap", "/usr/bin/dispatch_executable"]
