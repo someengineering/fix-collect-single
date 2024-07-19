@@ -1,4 +1,0 @@
-#!/bin/bash
-. /usr/local/etc/fixinventory/defaults
-. /usr/local/fix-venv-python3/bin/activate
-exec collect_single "$@"

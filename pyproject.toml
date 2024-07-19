@@ -40,7 +40,8 @@ test = [
 
 
 [project.scripts]
-collect_single = "collect_single.__main__:main"
+collect_single = "collect_single.collect_single:main"
+post_collect = "collect_single.post_collect:main"
 
 [build-system]
 requires = ["setuptools>=67.8.0", "wheel>=0.40.0", "build>=0.10.0"]
