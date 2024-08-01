@@ -20,6 +20,7 @@ from fixclient.async_client import FixInventoryClient
 from fixcore.query import query_parser
 
 from collect_single.collect_single import CollectSingle
+from collect_single.post_collect import PostCollect
 
 
 @pytest.mark.asyncio
@@ -51,7 +52,7 @@ async def test_migrate_ts(collect_and_sync: CollectSingle) -> None:
 
 
 def test_load_metrics() -> None:
-    metrics = CollectSingle.load_metrics()
+    metrics = PostCollect.load_metrics()
     assert len(metrics) >= 14
     for query in metrics:
         # make sure the query parser does not explode

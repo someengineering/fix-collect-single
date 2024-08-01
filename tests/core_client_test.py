@@ -5,8 +5,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from collect_single.collect_single import CollectSingle
 from collect_single.core_client import CoreClient
+from collect_single.post_collect import PostCollect
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ async def test_wait_for_collect_task_to_finish(core_client: CoreClient) -> None:
 async def test_timeseries_snapshot(core_client: CoreClient) -> None:
     accounts = [a async for a in core_client.client.search_list("is(aws_account) limit 1")]
     single = accounts[0]["reported"]["id"]
-    for query in CollectSingle.load_metrics():
+    for query in PostCollect.load_metrics():
         res = await core_client.timeseries_snapshot(query, single)
         assert res >= 0
 

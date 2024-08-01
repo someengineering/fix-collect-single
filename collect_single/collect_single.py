@@ -23,9 +23,8 @@ from datetime import timedelta
 from itertools import takewhile
 from pathlib import Path
 from typing import List, Tuple, Dict
-from typing import Optional, Any, cast
+from typing import Optional, cast
 
-import yaml
 from arango.cursor import Cursor
 from fixcloudutils.logging import setup_logger
 from fixcloudutils.redis.event_stream import Json
@@ -40,7 +39,6 @@ from fixcore.system_start import parse_args as core_parse_args
 from redis.asyncio import Redis
 
 from collect_single.job import Job
-from collect_single.model import MetricQuery
 from collect_single.process import ProcessWrapper
 
 log = logging.getLogger("fix.coordinator")
@@ -68,17 +66,6 @@ class CollectSingle(Job):
         self.logging_context = logging_context
         self.task_id: Optional[str] = None
         self.worker_connected = asyncio.Event()
-        self.metrics: List[MetricQuery] = []
-
-    async def start(self) -> Any:
-        await super().start()
-        self.metrics = self.load_metrics()
-
-    @staticmethod
-    def load_metrics() -> List[MetricQuery]:
-        with open(Path(__file__).parent / "metrics.yaml", "r") as f:
-            yml = yaml.safe_load(f)
-            return [MetricQuery.from_json(k, v) for k, v in yml.items() if "search" in v]
 
     async def listen_to_events_until_collect_done(self) -> bool:
         async for event in self.core_client.client.events():
@@ -118,32 +105,15 @@ class CollectSingle(Job):
         else:
             raise Exception("Could not start collect workflow")
 
-    async def post_process(self) -> Tuple[Json, List[str]]:
+    async def read_results(self) -> Tuple[Json, List[str]]:
         # get information about all accounts that have been collected/updated
         account_info = await self.core_client.account_info(self.account_id)
         # check if there were errors
         messages = await self.core_client.workflow_log(self.task_id) if self.task_id else []
-        # post process the data, if something has been collected
-        if account_info and (account_id := self.account_id):
-            # synchronize the security section
-            benchmarks = await self.core_client.list_benchmarks(providers=[self.cloud] if self.cloud else None)
-            if benchmarks:
-                await self.core_client.create_benchmark_reports([account_id], benchmarks, self.task_id)
-            # create metrics
-            for metric in self.metrics:
-                res = await self.core_client.timeseries_snapshot(metric, account_id)
-                if res:
-                    log.info(f"Created timeseries snapshot: {metric.name} created {res} entries")
-            # downsample all timeseries
-            ds = await self.core_client.timeseries_downsample()
-            log.info(f"Sampled down all timeseries. Result: {ds}")
-        else:
-            raise ValueError("No account info found. Give up!")
-
         return account_info, messages
 
     async def send_result_events(self, read_from_process: bool, error_messages: Optional[List[str]] = None) -> None:
-        account_info, messages = await self.post_process() if read_from_process else ({}, error_messages or [])
+        account_info, messages = await self.read_results() if read_from_process else ({}, error_messages or [])
         # send a collect done event for the tenant
         await self.collect_done_publisher.publish(
             "collect-done",
