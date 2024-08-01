@@ -7,16 +7,20 @@ import os
 import sys
 from argparse import ArgumentParser, Namespace
 from itertools import takewhile
+from pathlib import Path
+from time import sleep
 from typing import List, Dict
 from typing import Optional
 
 import cattrs
+import yaml
 from attr import define
 from fixcloudutils.logging import setup_logger
 from fixcloudutils.util import utc, utc_str
 from redis.asyncio.client import Redis
 
 from collect_single.job import Job
+from collect_single.model import MetricQuery
 from collect_single.process import ProcessWrapper
 
 log = logging.getLogger("fix.coordinator")
@@ -39,6 +43,12 @@ class PostCollect(Job):
         self.core_args = core_args
         self.logging_context = logging_context
 
+    @staticmethod
+    def load_metrics() -> List[MetricQuery]:
+        with open(Path(__file__).parent / "metrics.yaml", "r") as f:
+            yml = yaml.safe_load(f)
+            return [MetricQuery.from_json(k, v) for k, v in yml.items() if "search" in v]
+
     async def send_result_events(self, exception: Optional[Exception] = None) -> None:
         # send a collect done event for the tenant
         await self.collect_done_publisher.publish(
@@ -52,6 +62,16 @@ class PostCollect(Job):
                 "exception": str(exception) if exception else None,
             },
         )
+
+    async def create_timeseries(self) -> None:
+        # create metrics
+        for metric in self.load_metrics():
+            res = await self.core_client.timeseries_snapshot(metric)
+            if res:
+                log.info(f"Created timeseries snapshot: {metric.name} created {res} entries")
+        # downsample all timeseries
+        ds = await self.core_client.timeseries_downsample()
+        log.info(f"Sampled down all timeseries. Result: {ds}")
 
     async def merge_deferred_edges(self) -> None:
         await self.core_client.merge_deferred_edges([ac.task_id for ac in self.accounts_collected])
@@ -75,6 +95,9 @@ class PostCollect(Job):
                     log.info("All deferred edges have been updated.")
                     await self.security_report()
                     log.info("Security reports have been synchronized.")
+                    sleep(10)  # wait for the view to become ready
+                    await self.create_timeseries()
+                    log.info("Time series have been updated.")
             await asyncio.wait_for(self.send_result_events(), 600)  # wait up to 10 minutes
         except Exception as ex:
             log.info(f"Got Exception during sync: {ex}")
