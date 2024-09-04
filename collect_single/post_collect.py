@@ -30,7 +30,7 @@ class PostCollect(Job):
     def __init__(
         self,
         *,
-        redis: Redis,  # type: ignore
+        redis: Redis,
         tenant_id: str,
         job_id: str,
         accounts_collected: List[AccountCollected],

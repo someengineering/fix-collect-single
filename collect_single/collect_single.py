@@ -48,7 +48,7 @@ class CollectSingle(Job):
     def __init__(
         self,
         *,
-        redis: Redis,  # type: ignore
+        redis: Redis,
         tenant_id: str,
         cloud: Optional[str],
         account_id: Optional[str],
