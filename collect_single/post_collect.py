@@ -65,8 +65,9 @@ class PostCollect(Job):
 
     async def create_timeseries(self) -> None:
         # create metrics
+        account_ids = [ac.account_id for ac in self.accounts_collected]
         for metric in self.load_metrics():
-            res = await self.core_client.timeseries_snapshot(metric)
+            res = await self.core_client.timeseries_snapshot(metric, account_ids)
             if res:
                 log.info(f"Created timeseries snapshot: {metric.name} created {res} entries")
         # downsample all timeseries

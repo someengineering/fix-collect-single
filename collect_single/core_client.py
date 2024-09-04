@@ -104,11 +104,11 @@ class CoreClient(Service):
             log.info("Wait for worker to connect.")
             await asyncio.sleep(1)
 
-    async def timeseries_snapshot(self, metric: MetricQuery, account_id: Optional[str] = None) -> int:
+    async def timeseries_snapshot(self, metric: MetricQuery, account_ids: Optional[List[str]] = None) -> int:
         # create query
         query = query_parser.parse_query(metric.search)
-        if account_id:
-            query = query.combine(Query.by(P("/ancestors.account.reported.id").eq(account_id)))
+        if account_ids:
+            query = query.combine(Query.by(P("/ancestors.account.reported.id").is_in(account_ids)))
         # create command
         command = f"timeseries snapshot --name {metric.name} "
         if metric.factor:
