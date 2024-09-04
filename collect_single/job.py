@@ -18,7 +18,7 @@ class Job(Service, ABC):
     def __init__(
         self,
         *,
-        redis: Redis,  # type: ignore
+        redis: Redis,
         job_id: str,
         tenant_id: str,
         push_gateway_url: Optional[str] = None,
