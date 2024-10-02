@@ -11,6 +11,7 @@ class MetricQuery:
     description: str
     search: str
     factor: Optional[int]
+    only_on_collected_accounts: bool
 
     @staticmethod
     def from_json(name: str, js: Json) -> MetricQuery:
@@ -19,4 +20,5 @@ class MetricQuery:
             description=js["description"],
             search=js["search"],
             factor=js.get("factor"),
+            only_on_collected_accounts=js.get("only_on_collected_accounts", False),
         )

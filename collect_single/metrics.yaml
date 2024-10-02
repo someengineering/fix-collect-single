@@ -113,6 +113,8 @@ instances_total:
 
 account_score:
   description: Account score by account and cloud
+  # Needs to be inline with fixbackend report summary
+  only_on_collected_accounts: true
   search: |
     aggregate( 
       id as account_id, 
